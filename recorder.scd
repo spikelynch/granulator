@@ -12,7 +12,7 @@
 (
 
 
-~infile = "/Users/mike/Music/SuperCollider Recordings/LPlates/futzle Piano 48000 129bps.wav";
+~infile = "/Users/mike/Music/SuperCollider Recordings/SC_211017_172706.aiff";
 
 
 SynthDef("diskin", { |out, bufnum = 0|
@@ -21,7 +21,7 @@ SynthDef("diskin", { |out, bufnum = 0|
 
 SynthDef(\tick, {
 	arg out, freq=10000, atk=0.001, rel=0.4, amp=0.2;
-	var env = EnvGen.kr(Env.perc(atk, rel));
+	var env = EnvGen.kr(Env.perc(atk, rel), doneAction: Done.freeSelf);
 	Out.ar(out, Pan2.ar(RLPF.ar(WhiteNoise.ar(amp), freq) * env, 0));
 }).add;
 )

@@ -1,4 +1,4 @@
-
+Server.killAll
 
 // Execute this before booting the server
 
@@ -9,15 +9,17 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 
 (
 
-~bpm = 140;   // hack for buffer sync and recording
+~bpm = 135;   // hack for buffer sync and recording
 ~buflen = 240 / ~bpm;
 
 // IP address of whatever your TouchOSC surface is on - put here so it
 // doesn't get lost;
 
-~touchoscip = "192.168.0.2";
+///~touchoscip = "192.168.0.2";
 
+// ~touchoscip = "192.168.0.30";
 
+~touchoscip = "192.168.0.209";
 
 
 ~touchosc = NetAddr(~touchoscip, 9000);
@@ -107,7 +109,6 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 	OSCdef.new(
 		'osc' ++ name,
 		{ | msg |
-			[ 'touchosc', msg ].postln;
 			~sets.at(name).ctrlset(msg);
 			~sets.at(name).apply() },
 		oscurl
@@ -182,12 +183,9 @@ OSCdef.new(
 	| self |
 	var trate, qspeed;
 	qspeed = 2.pow(self.v[0].floor);
- 	qspeed.postln;
- 	~currentpos.set("speed", qspeed / ~buflen)
-	[ "grainrate", self.v ].postln;
+ 	~currentpos.set(\speed, qspeed / ~buflen);
 	trate = 2.pow(self.v[1].floor) / ~buflen;
- 	trate.postln;
-	~granulator.set("trate", trate);
+	~granulator.set(\trate, trate);
 
 }, ~ctrlxyset, ~ctrlxyget);
 
@@ -221,10 +219,10 @@ OSCdef.new(
 ~mset.value(\feedback,     '/fx/feedback',    0, 0.25, 0,    { |self| ~bufrecorder.set("feedback", self.v) } );
 ~mset.value(\filterfreq,   '/fx/freq',        200, 10000, 10000, { |self| ~granulator.set("freq", self.v) } );
 ~mset.value(\filterres,    '/fx/rq',         0.1, 1, 0.3,        { |self| ~granulator.set("res", self.v) } );
-~mset.value(\lfofreq,      '/fx/lfofreq',  0.001, 1, 0.5,        { |self| ~lfo.set("freq", self.v) } );
+~mset.value(\lfofreq,      '/fx/lfofreq',  0.001, 4, 0.5,        { |self| ~lfo.set("freq", self.v) } );
 ~mset.value(\lfoamp,       '/fx/lfoamp',  0,   1, 0,             { |self| ~lfo.set("amp", self.v) });
 
-~mset.value(\fuzz,         '/fx/fuzz',  1000,   6000, 6000,             { |self| self.v.postln });
+~mset.value(\fuzz,         '/fx/fuzz',  0,   1.0, 0.2,             { |self| ~fuzzbox.set(\distort, self.v) });
 
 
 // send defaults of the normal settings to the controller
@@ -272,26 +270,26 @@ OSCdef.new(
 
 // input filter chain
 
-~infilter = SynthDef(
-	\input_null,
-	{
-		arg in = 2, out = 4;
-		Out.ar(out, In.ar(in));
-	}
-).play(s, [\in, ~usbinput, \out, ~recordb]);
-
-
-// ~fuzzbox = SynthDef(
-// 	\fuzzbox,
+// ~infilter = SynthDef(
+// 	\input_null,
 // 	{
-// 		arg in=2, out=4, distort=0.1, decay=0.999;
-// 		var raw, cross, pf;
-// 		raw = In.ar(in, 1).softclip;
-// 		cross = CrossoverDistortion.ar(raw, 0.5, 0.5);
-// 		pf = PeakFollower.ar(raw, decay);
-// 		Out.ar(out, ((1 - distort) * raw) + (distort * pf * cross));
+// 		arg in = 2, out = 4;
+// 		Out.ar(out, In.ar(in));
 // 	}
-// ).play(s, [\in, ~usbinput, \out, ~recordb, \distort, 0 ]);
+// ).play(s, [\in, ~usbinput, \out, ~recordb]);
+
+
+~fuzzbox = SynthDef(
+	\fuzzbox,
+	{
+		arg in=2, out=4, distort=0.1, decay=0.999;
+		var raw, cross, pf;
+		raw = In.ar(in, 1).softclip;
+		cross = CrossoverDistortion.ar(raw, 0.5, 0.5);
+		pf = PeakFollower.ar(raw, decay);
+		Out.ar(out, ((1 - distort) * raw) + (distort * pf * cross));
+	}
+).play(s, [\in, ~usbinput, \out, ~recordb, \distort, 0 ]);
 
 
 // ~decimator = SynthDef(
@@ -300,12 +298,12 @@ OSCdef.new(
 // 		arg in=2, out=4, modb, rate=10000, smooth=0.5;
 // 		var raw, mod, decimated;
 // 		raw = In.ar(in, 1);
-// 		mod = In.kr(modb, 1);
+// 		mod = In.kr      (modb, 1);
 // 		decimated = SmoothDecimator.ar(raw, rate + (0.2 * rate * mod), smooth);
 // 		Out.ar(out, decimated);
 // 	}
 // ).play(s, [\in, ~usbinput, \out, ~recordb, \modb, ~lfob, \rate, 10000 ]);
-
+//
 
 // ~localmax = SynthDef(
 // 	\localmax,
@@ -317,7 +315,7 @@ OSCdef.new(
 // 		Out.ar(out, IFFT.ar(chain));
 // 	}
 // ).play(s, [\in, ~usbinput, \out, ~recordb, \threshold, 25 ]);
-
+//
 
 // ~scramble = SynthDef(
 // 	\scramble,
@@ -329,7 +327,7 @@ OSCdef.new(
 // 		Out.ar(out, IFFT.ar(chain));
 // 	}
 // ).play(s, [\in, ~usbinput, \out, ~recordb, \shift, 1 ]);
-
+//
 
 
 
