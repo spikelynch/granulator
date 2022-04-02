@@ -5,31 +5,36 @@ Server.killAll
 Server.default.options.inDevice_("Scarlett 2i2 USB");
 
 
-
 (
 
 
-~to = TouchOsc("192.168.0.209", 9000);
+~to = TouchOSC("192.168.0.209", 9000);
 
 
 ~patchdir = "~/Music/SuperCollider/Patches/granulator/";
 
-~to.button('/record', 1, { | v | ~bufrecorder.set("record", v) });
+~buflen = 4.0;
+
+// sidebar -
+
+~to.button('/record', 1, { | v | ~bufrecorder.set(\record, v) });
 ~to.button('/clear', 0, { | v |
 	if( v > 0, {
-		var bl = ~to.v('/buflength'), ~to.v('/grains/speed')[0];
-		~newbuffer = Buffer.alloc(s, s.sampleRate * bl, 1);
+		var sp = ~to.v('/grains/speed')[0];
+		~buflen = ~to.v('/grains/length');
+		~newbuffer = Buffer.alloc(s, s.sampleRate * ~buflen, 1);
 		~granulator.set(\buffer, ~newbuffer);
 		~bufrecorder.set(\buffer, ~newbuffer);
 		~frippbuffer.free;
 		~frippbuffer = ~newbuffer;
-		~currentpos.set(\speed, sp / bl);
+		~currentpos.set(\speed, sp / ~buflen);
 	});
-})
+});
 
 ~to.slider('/mix', 0.25, TouchOSCScale(0, 1),        { |v| ~bufrecorder.set(\mix, v) } );
 ~to.slider('/grainamp', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
 ~to.slider('/passthrough', 0.5, TouchOSCScale(0, 1), { |v| ~mixer.set(\passthrough, v) } );
+
 
 // page 1: grains
 
@@ -39,7 +44,7 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 	[ ~grainsin, ~grainsinb ],
 	[ ~graintri, ~graintrib ],
 	[ ~grainrand, ~grainrandb ]
-]
+];
 
 ~to.button('/grains/mode', 0, { |v|
 	var mode = ~modes[v];
@@ -48,7 +53,10 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 	~currentpos.set(\speed, ~to.v('/grains/speed')[0]);
 });
 
-~to.slider('/grains/length', 4.0, TouchOSCScale(0.1, 10.0), {});
+// note: ~buflen is the variable for buffer length, which only gets set to
+// ~to.v('/grains/length') when the buffer is reset with the clear button
+
+~to.slider('/grains/length', ~buflen, TouchOSCScale(0.1, 10.0), {});
 
 ~to.xy('/grains/speed', [ 0, 4 ], TouchOSCScale(-4, 4), TouchOSCScale(0, 10), { | v |
 	var trate, qspeed;
@@ -186,7 +194,7 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 
 // buffer recorder
 
-~frippbuffer = Buffer.alloc(s, s.sampleRate * ~sets.at(\buflength).v, 1);
+~frippbuffer = Buffer.alloc(s, s.sampleRate * ~buflen, 1);
 
 ~bufrecorder = SynthDef(
 	\fripp_record,
