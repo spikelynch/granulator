@@ -4,103 +4,92 @@ Server.killAll
 
 Server.default.options.inDevice_("Scarlett 2i2 USB");
 
+// TODO - FIXME
+
+// [X] mode switching isn't working
+// [ ] playback speed isn't working
+// [ ] lfo filter modulation isn't working
+// [ ] setting parameters from defaults at startup like passthrough
+s.sampleRate
 
 (
 
-
 ~to = TouchOSC("192.168.0.209", 9000);
-
 
 ~patchdir = "~/Music/SuperCollider/Patches/granulator/";
 
 ~buflen = 4.0;
 
-// sidebar -
+// trying setting the playback LFOs before the controls
 
-~to.button('/record', 1, { | v | ~bufrecorder.set(\record, v) });
-~to.button('/clear', 0, { | v |
-	if( v > 0, {
-		var sp = ~to.v('/grains/speed')[0];
-		~buflen = ~to.v('/grains/length');
-		~newbuffer = Buffer.alloc(s, s.sampleRate * ~buflen, 1);
-		~granulator.set(\buffer, ~newbuffer);
-		~bufrecorder.set(\buffer, ~newbuffer);
-		~frippbuffer.free;
-		~frippbuffer = ~newbuffer;
-		~currentpos.set(\speed, sp / ~buflen);
-	});
-});
+// granulator playback modes
+// each of these is a control bus with a synth that drives the pattern
+// the granulator mode control switches between them
 
-~to.slider('/mix', 0.25, TouchOSCScale(0, 1),        { |v| ~bufrecorder.set(\mix, v) } );
-~to.slider('/grainamp', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
-~to.slider('/passthrough', 0.5, TouchOSCScale(0, 1), { |v| ~mixer.set(\passthrough, v) } );
+// more ideas for modules: scramble - do a permutation of ABCDEFGH slots
 
+// todo - encapsulate these in a class
 
-// page 1: grains
+~grainsinb = Bus.control(s, 1);
+
+~grainsin = SynthDef(
+	\grainsin,
+	{
+		arg out=5, speed=1;
+		Out.kr(out, 0.5 + SinOsc.kr(speed, 0, 0.5));
+	}
+).play(s, [\out, ~grainsinb, \speed, 1]);
+
+~grainsawb = Bus.control(s, 1);
+
+~grainsaw = SynthDef(
+	\grainsaw,
+	{
+		arg out=5, speed=1;
+		Out.kr(out, 0.5 + LFSaw.kr(speed, 0, 0.5));
+	}
+).play(s, [\out, ~grainsawb, \speed, 1]);
+
+~grainreverseb = Bus.control(s, 1);
+
+~grainreverse = SynthDef(
+	\grainreverse,
+	{
+		arg out=5, speed=1;
+		Out.kr(out, 0.5 - LFSaw.kr(speed, 0, 0.5));
+	}
+).play(s, [\out, ~grainreverseb, \speed, 1]);
+
+~graintrib = Bus.control(s, 1);
+
+~graintri = SynthDef(
+	\graintri,
+	{
+		arg out=5, speed=1;
+		Out.kr(out, 0.5 + LFTri.kr(speed, 0, 0.5));
+	}
+).play(s, [\out, ~graintrib, \speed, 1]);
+
+~grainrandb = Bus.control(s, 1);
+
+~grainrand = SynthDef(
+	\grainrand,
+	{
+		arg out=5, speed=1;
+		Out.kr(out, 0.5 + WhiteNoise.kr(0.5));
+	}
+).play(s, [\out, ~grainrandb, \speed, 1]);
+
 
 ~modes = [
-	[ ~grainsaw, ~grainsawb ],
-	[ ~grainreverse, ~grainreverseb ],
-	[ ~grainsin, ~grainsinb ],
-	[ ~graintri, ~graintrib ],
-	[ ~grainrand, ~grainrandb ]
+	[ ~grainsaw, ~grainsawb, "saw" ],
+	[ ~grainreverse, ~grainreverseb, "reverse", ],
+	[ ~grainsin, ~grainsinb, "sine" ],
+	[ ~graintri, ~graintrib, "triangle" ],
+	[ ~grainrand, ~grainrandb, "random" ]
 ];
 
-~to.button('/grains/mode', 0, { |v|
-	var mode = ~modes[v];
-	~granulator.set(\posb, mode[1]);
-	~currentpos = mode[0];
-	~currentpos.set(\speed, ~to.v('/grains/speed')[0]);
-});
-
-// note: ~buflen is the variable for buffer length, which only gets set to
-// ~to.v('/grains/length') when the buffer is reset with the clear button
-
-~to.slider('/grains/length', ~buflen, TouchOSCScale(0.1, 10.0), {});
-
-~to.xy('/grains/speed', [ 0, 4 ], TouchOSCScale(-4, 4), TouchOSCScale(0, 10), { | v |
-	var trate, qspeed;
-	qspeed = 2.pow(v[0].floor);
- 	~currentpos.set(\speed, qspeed / ~buflen);
-	trate = 2.pow(v[1].floor) / ~buflen;
-	~granulator.set(\trate, trate);
-});
-
-~to.slider('/grains/size', 12, TouchOSCScale(0, 20),{ |v| ~granulator.set(\size, v) });
-
-// Page 2: grainfx
-
-~to.slider('/grainfx/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
-~to.slider('/grainfx/back',   1, { |v| ~granulator.set(\rate, if( v > 0, { 1 }, { -1}))});
-~to.slider('/grainfx/chorus', 0, { |v| ~granulator.set(\chorus, v) });
-~to.slider('/grainfx/dust',   0, { |v| ~granulator.set(\dust, v) });
-
-// pitch gets quantised to octaves from 3 below to 3 above.
-// NOTE: the pitch TouchOSC control is -1 to 1, not 0 to 1
-// min/max gets ignored because I'm overloading the ctrlset/get
-
-// TODO: fixme,
-
-// ~to.slider('/grainfx/pitch', -1, 1, 1,
-// 	{ |self| ~granulator.set("rate", self.v) },
-// 	{ |self, ctrlv | self.v = 2.pow((ctrlv * 3).floor) },
-// 	{ |self|         self.v.log2.floor / 3; }
-// );
-
-
-
-~to.slider('/fx/feedback',  0, TouchOSCScale(0, 0.25),    { |v| ~bufrecorder.set(\feedback, v) } );
-~to.slider('/fx/freq',  10000, TouchOSCScale(200, 10000), { |v| ~granulator.set(\freq, v) } );
-~to.slider('/fx/rq',      0.3, TouchOSCScale(0.1, 1),     { |v| ~granulator.set(\res, v) } );
-~to.slider('/fx/lfofreq',  0.5,TouchOSCScale(0.001, 4),   { |v| ~lfo.set(\freq, v) } );
-~to.slider('/fx/lfoamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfo.set(\amp, v) });
-~to.slider('/fx/fuzz',    0,   TouchOSCScale(0, 1),       { |v| ~fuzzbox.set(\distort, v) });
-
-
-
-
-// Now the actual sound synthesis part
-
+~playbacklfo = ~modes[0][0];
 
 // audio buses
 
@@ -209,66 +198,6 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 
 
 
-// granulator playback modes
-// each of these is a control bus with a synth that drives the pattern
-// the granulator mode control switches between them
-
-// more ideas for modules: scramble - do a permutation of ABCDEFGH slots
-
-// todo - encapsulate these in a class
-
-~grainsinb = Bus.control(s, 1);
-
-~grainsin = SynthDef(
-	\grainsin,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 + SinOsc.kr(speed, 0, 0.5));
-	}
-).play(s, [\out, ~grainsinb, \speed, 1]);
-
-~grainsawb = Bus.control(s, 1);
-
-~grainsaw = SynthDef(
-	\grainsaw,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 + LFSaw.kr(speed, 0, 0.5));
-	}
-).play(s, [\out, ~grainsawb, \speed, 1]);
-
-~grainreverseb = Bus.control(s, 1);
-
-~grainreverse = SynthDef(
-	\grainreverse,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 - LFSaw.kr(speed, 0, 0.5));
-	}
-).play(s, [\out, ~grainreverseb, \speed, 1]);
-
-~graintrib = Bus.control(s, 1);
-
-~graintri = SynthDef(
-	\graintri,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 + LFTri.kr(speed, 0, 0.5));
-	}
-).play(s, [\out, ~graintrib, \speed, 1]);
-
-~grainrandb = Bus.control(s, 1);
-
-~grainrand = SynthDef(
-	\grainsin,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 + WhiteNoise.kr(0.5));
-	}
-).play(s, [\out, ~grainrandb, \speed, 1]);
-
-
-
 // the main granulator synth
 
 // todo - different styles of trigger
@@ -313,6 +242,101 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 		Out.ar(out, In.ar(in, 2))
 	}
 ).play(s, [\in, ~mixerb, \out, 0 ], \addToTail);
+
+
+// sidebar -
+
+~to.button('/record', 1, { | v | ~bufrecorder.set(\record, v) });
+
+// todo - it would be nice, maybe, to fake a click against this at startup
+// to initialise the buffer
+
+~to.button('/reset', 0, { | v |
+	if( v > 0, {
+		var sp = ~to.v('/grains/speed')[0];
+		~buflen = ~to.v('/grains/buflen');
+		[ "resetting buffer to", ~buflen ].postln;
+		~newbuffer = Buffer.alloc(s, s.sampleRate * ~buflen, 1);
+		~granulator.set(\buffer, ~newbuffer);
+		~bufrecorder.set(\buffer, ~newbuffer);
+		if( ~frippbuffer.isNil.not, { ~frippbuffer.free });
+		~frippbuffer = ~newbuffer;
+		~playbacklfo.set(\speed, sp / ~buflen);
+	});
+});
+
+
+~to.slider('/mix', 0.25, TouchOSCScale(0, 1),        { |v| ~bufrecorder.set(\mix, v) } );
+~to.slider('/grainamp', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
+~to.slider('/passthrough', 0.5, TouchOSCScale(0, 1), { |v| ~mixer.set(\passthrough, v) } );
+
+// note: ~buflen is the variable for buffer length, which only gets set to
+// ~to.v('/grains/buflen') when the buffer is reset with the clear button
+
+~to.slider('/grains/buflen', ~buflen, TouchOSCScale(0.1, 10.0), {});
+
+~to.xy('/grains/speed', [ 1, 40 ], TouchOSCScale(0, 2), TouchOSCScale(0, 120), { | v |
+	~playbacklfo.set(\speed, v[0] / ~buflen);
+	~granulator.set(\trate, v[1] / ~buflen);
+});
+
+~to.button('/grains/mode', 0, { |v|
+	var mode = ~modes[v];
+	[ "trying to set mode to", v ].postln;
+	[ "mode is ", mode].postln;
+	mode.isNil.postln;
+	if( mode.isNil.not, {
+		~granulator.set(\posb, mode[1]);
+		~playbacklfo = mode[0];
+		~playbacklfo.set(\speed, ~to.v('/grains/speed')[0]);
+	}, {
+		[ "Bad mode index", v ].postln;
+	});
+});
+
+
+// todo vvv quantise speed should be swappable
+
+// var trate, qspeed;
+// qspeed = 2.pow(v[0].floor);
+// ~playbacklfo.set(\speed, qspeed / ~buflen);
+// [ "speed", v[0], qspeed, qspeed / ~buflen ].postln;
+// trate = 2.pow(v[1].floor) / ~buflen;
+// ~granulator.set(\trate, trate);
+
+
+
+~to.slider('/grains/size', 12, TouchOSCScale(0, 20),{ |v| ~granulator.set(\size, v) });
+
+// Page 2: grainfx
+
+~to.slider('/grainfx/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
+~to.button('/grainfx/back',   1, { |v| ~granulator.set(\rate, if( v > 0, { -1 }, { 1}))});
+~to.button('/grainfx/chorus', 0, { |v| ~granulator.set(\chorus, v) });
+~to.button('/grainfx/dust',   0, { |v| ~granulator.set(\dust, v) });
+
+// pitch gets quantised to octaves from 3 below to 3 above.
+// NOTE: the pitch TouchOSC control is -1 to 1, not 0 to 1
+// min/max gets ignored because I'm overloading the ctrlset/get
+
+// TODO: fixme,
+
+// ~to.slider('/grainfx/pitch', -1, 1, 1,
+// 	{ |self| ~granulator.set("rate", self.v) },
+// 	{ |self, ctrlv | self.v = 2.pow((ctrlv * 3).floor) },
+// 	{ |self|         self.v.log2.floor / 3; }
+// );
+
+
+
+~to.slider('/fx/feedback',  0, TouchOSCScale(0, 0.25),    { |v| ~bufrecorder.set(\feedback, v) } );
+~to.slider('/fx/freq',  10000, TouchOSCScale(200, 10000), { |v| ~granulator.set(\freq, v) } );
+~to.slider('/fx/rq',      0.3, TouchOSCScale(0.1, 1),     { |v| ~granulator.set(\res, v) } );
+~to.slider('/fx/lfofreq',  0.5,TouchOSCScale(0.001, 4),   { |v| ~lfo.set(\freq, v) } );
+~to.slider('/fx/lfoamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfo.set(\amp, v) });
+~to.slider('/fx/fuzz',    0,   TouchOSCScale(0, 1),       { |v| ~fuzzbox.set(\distort, v) });
+
+
 
 
 
