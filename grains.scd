@@ -16,8 +16,6 @@ s.sampleRate
 
 ~to = TouchOSC("192.168.0.209", 9000);
 
-~patchdir = "~/Music/SuperCollider/Patches/granulator/";
-
 ~buflen = 4.0;
 
 // trying setting the playback LFOs before the controls
@@ -29,6 +27,7 @@ s.sampleRate
 // more ideas for modules: scramble - do a permutation of ABCDEFGH slots
 
 // todo - encapsulate these in a class
+
 
 ~grainsinb = Bus.control(s, 1);
 
@@ -141,7 +140,6 @@ s.sampleRate
 	}
 ).play(s, [\in, ~usbinput, \out, ~recordb, \distort, 0 ]);
 
-
 // ~decimator = SynthDef(
 // 	\decimator,
 // 	{
@@ -180,7 +178,6 @@ s.sampleRate
 //
 
 
-
 // buffer recorder
 
 ~frippbuffer = Buffer.alloc(s, s.sampleRate * ~buflen, 1);
@@ -197,11 +194,9 @@ s.sampleRate
 ).play(s, [\in, ~recordb, \record, 1.0, \fb, ~granulatorb, \out, 0, \buffer, ~frippbuffer], \addToTail);
 
 
-
 // the main granulator synth
 
 // todo - different styles of trigger
-
 
 ~granulator = SynthDef(
 	\grainsynth,
@@ -222,7 +217,6 @@ s.sampleRate
 
 ~mixerb = Bus.audio(s, 2); // this is what we will record from
 
-
 ~mixer = SynthDef(
 	\mixer_synth,
 	{
@@ -233,8 +227,6 @@ s.sampleRate
 ).play(s, [\in, 2, \out, ~mixerb, \gbus, ~granulatorb, \amp, 1.0, \passthrough, 0.0], \addToTail);
 
 
-//
-
 ~monitor = SynthDef(
 	\monitor_synth,
 	{
@@ -243,13 +235,17 @@ s.sampleRate
 	}
 ).play(s, [\in, ~mixerb, \out, 0 ], \addToTail);
 
+// sync the server so that all the synths are ready for the touchosc stuff
+)
 
+s.sync(); // this needs to be done in a routine because it calls yield
 // sidebar -
 
+~to
+
+(
 ~to.button('/record', 1, { | v | ~bufrecorder.set(\record, v) });
 
-// todo - it would be nice, maybe, to fake a click against this at startup
-// to initialise the buffer
 
 ~to.button('/reset', 0, { | v |
 	if( v > 0, {
@@ -270,10 +266,28 @@ s.sampleRate
 ~to.slider('/grainamp', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
 ~to.slider('/passthrough', 0.5, TouchOSCScale(0, 1), { |v| ~mixer.set(\passthrough, v) } );
 
+~to.slider('/feedback',  0, TouchOSCScale(0, 0.25), { |v|
+	~bufrecorder.set(\feedback, v) } );
+
+~to.button('/grains/bpm', "~", {});
+
+~tapper = TapBeats();
+
+~to.button('/grains/tap', 0, { | v, t |
+	if( v > 0, {
+		~tapper.tap(t);
+		if( ~tapper.bpm.isNil.not, {
+			~to.v_('/grains/bpm', ~tapper.bpm.round(1));
+		})
+	})
+});
+
 // note: ~buflen is the variable for buffer length, which only gets set to
 // ~to.v('/grains/buflen') when the buffer is reset with the clear button
 
 ~to.slider('/grains/buflen', ~buflen, TouchOSCScale(0.1, 10.0), {});
+
+
 
 ~to.xy('/grains/speed', [ 1, 40 ], TouchOSCScale(0, 2), TouchOSCScale(0, 120), { | v |
 	~playbacklfo.set(\speed, v[0] / ~buflen);
@@ -329,7 +343,6 @@ s.sampleRate
 
 
 
-~to.slider('/fx/feedback',  0, TouchOSCScale(0, 0.25),    { |v| ~bufrecorder.set(\feedback, v) } );
 ~to.slider('/fx/freq',  10000, TouchOSCScale(200, 10000), { |v| ~granulator.set(\freq, v) } );
 ~to.slider('/fx/rq',      0.3, TouchOSCScale(0.1, 1),     { |v| ~granulator.set(\res, v) } );
 ~to.slider('/fx/lfofreq',  0.5,TouchOSCScale(0.001, 4),   { |v| ~lfo.set(\freq, v) } );
