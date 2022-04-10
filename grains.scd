@@ -93,7 +93,7 @@ s.sampleRate
 ];
 
 ~playbacklfo = ~modes[0][0];
-
+~playbacklfob = ~modes[0][1];
 // audio buses
 
 // recordb = input to bufrecorder
@@ -255,6 +255,11 @@ OSCdef.freeAll;
 
 ~to.slider('/grains/buflen', ~buflen, TouchOSCScale(0.1, 10.0), {});
 
+
+// this is a write-only control to display where the buffer playback is at
+
+~to.slider('/grains/buffer', 0, TouchOSCScale(0, 1), {});
+
 ~to.xy('/grains/speed', [ 1, 40 ], TouchOSCScale(0, 2), TouchOSCScale(0, 120), { | v |
 	~playbacklfo.set(\speed, v[0] / ~buflen);
 	~granulator.set(\trate, v[1] / ~buflen);
@@ -262,9 +267,12 @@ OSCdef.freeAll;
 
 ~to.button('/grains/mode', 0, { |v|
 	var mode = ~modes[v];
+	"mode".postln;
+	[ v, mode ].postln;
 	if( mode.isNil.not, {
 		~granulator.set(\posb, mode[1]);
 		~playbacklfo = mode[0];
+		~playbacklfob = mode[1];
 		~playbacklfo.set(\speed, ~to.v('/grains/speed')[0]);
 	}, {
 		[ "Bad mode index", v ].postln;
@@ -272,6 +280,7 @@ OSCdef.freeAll;
 });
 
 ~to.button('/grains/dust',   0, { |v| ~granulator.set(\dust, v) });
+~to.slider('/grainf/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
 
 
 // todo vvv quantise speed should be swappable
@@ -289,7 +298,7 @@ OSCdef.freeAll;
 
 // Page 2: grainfx
 
-~to.slider('/grainfx/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
+~to.slider('/grains/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
 ~to.button('/grainfx/back',   0, { |v| ~granulator.set(\rate, if( v > 0, { -1 }, { 1}))});
 
 ~to.button('/grainfx/slope',   1, { |v| });
@@ -329,35 +338,26 @@ OSCdef.freeAll;
 ~to.slider('/fx/lfofreq',  0.5,TouchOSCScale(0.001, 4),   { |v| ~lfo.set(\freq, v) } );
 ~to.slider('/fx/lfoamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfo.set(\amp, v) });
 
-
-~granulator;
-
-
-
-)
-
-~granulator.set(\out, 0);
-~mixer.set(\in, 2);
-
-
-(
-~foo = SynthDef(
-	\foo,
-	{
-		arg in=0, out=0;
-		Out.ar(out, In.ar(in, 1))
-	}
-).play(s, [\in, 2, \out, 0], \addToTail);
 )
 
 (
-~test = SynthDef(
-	\foo,
+~posdisplay = Task.new({
 	{
-		arg out=0;
-		Out.ar(out, SinOsc.ar(440, 0, 0.1))
-	}
-).play(s, [], \addToTail);
+		~playbacklfob.get({ | v |
+			~to.v_('/grains/buffer', v)
+		});
+		0.02.wait;
+	}.loop;
+});
+
+
+~posdisplay.start;
 )
 
-~foo.free
+~to.slider('/grains/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
+
+~posdisplay.stop;
+
+~playbacklfob;
+
+~posb;
