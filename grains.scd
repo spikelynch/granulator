@@ -16,7 +16,11 @@ s.sampleRate
 
 ~to = TouchOSC("192.168.0.209", 9000);
 
+~usbinput = 2;
+
+
 ~buflen = 4.0;
+~beatsperbar = 4;
 
 // trying setting the playback LFOs before the controls
 
@@ -95,15 +99,12 @@ s.sampleRate
 // recordb = input to bufrecorder
 // granulatorb = output from granulator
 
-~usbinput = 2;
 
 ~recordb = Bus.audio(s, 1);
 
 ~granulatorb = Bus.audio(s, 2);
 
 // LFO bus and synth used to modulate the filter
-// TODO - have a couple of LFOs and an interface to patch them to
-// different settings
 
 ~lfob = Bus.control(s, 1);
 
@@ -115,67 +116,6 @@ s.sampleRate
 	}
 ).play(s, [\out, ~lfob, \freq, 1, \amp, 0]);
 
-
-
-// input filter chain
-
-// ~infilter = SynthDef(
-// 	\input_null,
-// 	{x
-// 		arg in = 2, out = 4;
-// 		Out.ar(out, In.ar(in));
-// 	}
-// ).play(s, [\in, ~usbinput, \out, ~recordb]);
-
-
-~fuzzbox = SynthDef(
-	\fuzzbox,
-	{
-		arg in=2, out=4, distort=0.1, decay=0.999;
-		var raw, cross, pf;
-		raw = In.ar(in, 1).softclip;
-		cross = CrossoverDistortion.ar(raw, 0.5, 0.5);
-		pf = PeakFollower.ar(raw, decay);
-		Out.ar(out, ((1 - distort) * raw) + (distort * pf * cross));
-	}
-).play(s, [\in, ~usbinput, \out, ~recordb, \distort, 0 ]);
-
-// ~decimator = SynthDef(
-// 	\decimator,
-// 	{
-// 		arg in=2, out=4, modb, rate=10000, smooth=0.5;
-// 		var raw, mod, decimated;
-// 		raw = In.ar(in, 1);
-// 		mod = In.kr      (modb, 1);
-// 		decimated = SmoothDecimator.ar(raw, rate + (0.2 * rate * mod), smooth);
-// 		Out.ar(out, decimated);
-// 	}
-// ).play(s, [\in, ~usbinput, \out, ~recordb, \modb, ~lfob, \rate, 10000 ]);
-//
-
-// ~localmax = SynthDef(
-// 	\localmax,
-// 	{
-// 		arg in=2, out=4, threshold=25;
-// 		var chain;
-// 		chain = FFT(LocalBuf(2048), In.ar(in, 1).distort);
-// 		chain = PV_LocalMax(chain, threshold);
-// 		Out.ar(out, IFFT.ar(chain));
-// 	}
-// ).play(s, [\in, ~usbinput, \out, ~recordb, \threshold, 25 ]);
-//
-
-// ~scramble = SynthDef(
-// 	\scramble,
-// 	{
-// 		arg in=2, out=4, shift=1;
-// 		var chain;
-// 		chain = FFT(LocalBuf(2048), In.ar(in, 1).distort);
-// 		chain = PV_BinScramble(chain, 0.5, 0.2, Impulse.kr(shift));
-// 		Out.ar(out, IFFT.ar(chain));
-// 	}
-// ).play(s, [\in, ~usbinput, \out, ~recordb, \shift, 1 ]);
-//
 
 
 // buffer recorder
@@ -201,17 +141,17 @@ s.sampleRate
 ~granulator = SynthDef(
 	\grainsynth,
 	{
-		arg out=0, modb, trate=120, size=12, rate=1, posb=5, amp=1.0, freq=10000, rq=0.3, sweep=0.25, chorus=0.0, blur=0.0, dust = 0, buffer;
-		var dur, blen, clk, chor, pos, pan, grains, filtfreq;
+		arg out=0, modb, trate=120, size=12, rate=1, posb=5, amp=1.0, freq=10000, rq=0.3, pan=0, track=0.25, jitter=0, chorus=0.0, blur=0.0, dust = 0, buffer;
+		var dur, blen, clk, chor, pos, pans, grains, filtfreq;
 		dur = size / trate;
 		clk = (Impulse.kr(trate) * (1 - dust)) + (Dust.kr(trate) * dust);
 		chor = chorus * 2.pow((LFNoise0.kr(trate) + 0.5).floor) + (1 - chorus);
 		blen = BufDur.kr(buffer);
 		pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
-		pan = WhiteNoise.kr(1 - sweep) + (2 * sweep * (pos - 1));
+		pans = pan + WhiteNoise.kr(jitter) + (track * (In.kr(posb, 1) - 1));
 		filtfreq = (In.kr(modb, 1) * freq * 0.5) + freq;
-		grains = TGrains.ar(2, clk, buffer, chor * rate, pos * blen, dur, pan, amp);
-		Out.ar(out, RLPF.ar(grains, freq, rq)); // note that I've turned off freq lfo mod here
+		grains = TGrains.ar(2, clk, buffer, chor * rate, pos * blen, dur, pans, amp);
+		Out.ar(out, RLPF.ar(grains, filtfreq, rq));
 	}
 ).play(s, [\out, ~granulatorb, \buffer, ~frippbuffer, \posb, ~grainsawb, \modb, ~lfob]);
 
@@ -224,7 +164,7 @@ s.sampleRate
 		//Out.ar(out, In.ar(gbus, 2));
 		Out.ar(out, (amp * In.ar(gbus, 2)) + (passthrough * In.ar(~recordb, 1) ! 2));
 	}
-).play(s, [\in, 2, \out, ~mixerb, \gbus, ~granulatorb, \amp, 1.0, \passthrough, 0.0], \addToTail);
+).play(s, [\in, ~usbinput, \out, ~mixerb, \gbus, ~granulatorb, \amp, 1.0, \passthrough, 0.0], \addToTail);
 
 
 ~monitor = SynthDef(
@@ -238,12 +178,22 @@ s.sampleRate
 // sync the server so that all the synths are ready for the touchosc stuff
 )
 
-s.sync(); // this needs to be done in a routine because it calls yield
+// s.sync(); // this needs to be done in a routine because it calls yield
 // sidebar -
 
-~to
+ServerMeter.new(s, 8, 8);
+
+~mixer.set(\in, 0);
+~recordb;
+
+~monitor.set(\in, ~usbinput);
+
+~mixer.set(\in, 0);
 
 (
+
+
+OSCdef.freeAll;
 ~to.button('/record', 1, { | v | ~bufrecorder.set(\record, v) });
 
 
@@ -263,7 +213,7 @@ s.sync(); // this needs to be done in a routine because it calls yield
 
 
 ~to.slider('/mix', 0.25, TouchOSCScale(0, 1),        { |v| ~bufrecorder.set(\mix, v) } );
-~to.slider('/grainamp', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
+~to.slider('/gain', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
 ~to.slider('/passthrough', 0.5, TouchOSCScale(0, 1), { |v| ~mixer.set(\passthrough, v) } );
 
 ~to.slider('/feedback',  0, TouchOSCScale(0, 0.25), { |v|
@@ -282,12 +232,19 @@ s.sync(); // this needs to be done in a routine because it calls yield
 	})
 });
 
+
+~to.button('/grains/bpmsend', 0, { | v |
+	if( ~tapper.bpm.isNil.not, {
+		var bl = ~beatsperbar * ~tapper.bpm;
+		~to.v_('/grains/buflen', bl);
+		~to.v_('/reset', 1);
+	});
+});
+
 // note: ~buflen is the variable for buffer length, which only gets set to
 // ~to.v('/grains/buflen') when the buffer is reset with the clear button
 
 ~to.slider('/grains/buflen', ~buflen, TouchOSCScale(0.1, 10.0), {});
-
-
 
 ~to.xy('/grains/speed', [ 1, 40 ], TouchOSCScale(0, 2), TouchOSCScale(0, 120), { | v |
 	~playbacklfo.set(\speed, v[0] / ~buflen);
@@ -296,9 +253,6 @@ s.sync(); // this needs to be done in a routine because it calls yield
 
 ~to.button('/grains/mode', 0, { |v|
 	var mode = ~modes[v];
-	[ "trying to set mode to", v ].postln;
-	[ "mode is ", mode].postln;
-	mode.isNil.postln;
 	if( mode.isNil.not, {
 		~granulator.set(\posb, mode[1]);
 		~playbacklfo = mode[0];
@@ -307,6 +261,8 @@ s.sync(); // this needs to be done in a routine because it calls yield
 		[ "Bad mode index", v ].postln;
 	});
 });
+
+~to.button('/grains/dust',   0, { |v| ~granulator.set(\dust, v) });
 
 
 // todo vvv quantise speed should be swappable
@@ -325,9 +281,17 @@ s.sync(); // this needs to be done in a routine because it calls yield
 // Page 2: grainfx
 
 ~to.slider('/grainfx/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
-~to.button('/grainfx/back',   1, { |v| ~granulator.set(\rate, if( v > 0, { -1 }, { 1}))});
+~to.button('/grainfx/back',   0, { |v| ~granulator.set(\rate, if( v > 0, { -1 }, { 1}))});
+
+~to.button('/grainfx/slope',   1, { |v| });
+
 ~to.button('/grainfx/chorus', 0, { |v| ~granulator.set(\chorus, v) });
-~to.button('/grainfx/dust',   0, { |v| ~granulator.set(\dust, v) });
+
+~to.slider('/grainfx/pan', 0,    TouchOSCScale(-1, 1), { |v| ~granulator.set(\pan, v) });
+~to.slider('/grainfx/track', 0,  TouchOSCScale(-1, 1), { |v| ~granulator.set(\track, v) });
+~to.slider('/grainfx/jitter', 0, TouchOSCScale(0, 1), { |v| ~granulator.set(\jitter, v) });
+
+
 
 // pitch gets quantised to octaves from 3 below to 3 above.
 // NOTE: the pitch TouchOSC control is -1 to 1, not 0 to 1
@@ -342,18 +306,49 @@ s.sync(); // this needs to be done in a routine because it calls yield
 // );
 
 
+~to.xy(
+	'/fx/filter',
+	[ 10000, 0.3 ],
+	TouchOSCScale(200, 10000),
+    TouchOSCScale(0.1, 1),
+	{ |v|
+		~granulator.set(\freq, v[0]);
+		~granulator.set(\res,  v[1]);
+	}
+);
 
-~to.slider('/fx/freq',  10000, TouchOSCScale(200, 10000), { |v| ~granulator.set(\freq, v) } );
-~to.slider('/fx/rq',      0.3, TouchOSCScale(0.1, 1),     { |v| ~granulator.set(\res, v) } );
 ~to.slider('/fx/lfofreq',  0.5,TouchOSCScale(0.001, 4),   { |v| ~lfo.set(\freq, v) } );
 ~to.slider('/fx/lfoamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfo.set(\amp, v) });
-~to.slider('/fx/fuzz',    0,   TouchOSCScale(0, 1),       { |v| ~fuzzbox.set(\distort, v) });
 
 
-
+~granulator;
 
 
 
 )
 
+~granulator.set(\out, 0);
+~mixer.set(\in, 2);
 
+
+(
+~foo = SynthDef(
+	\foo,
+	{
+		arg in=0, out=0;
+		Out.ar(out, In.ar(in, 1))
+	}
+).play(s, [\in, 2, \out, 0], \addToTail);
+)
+
+(
+~test = SynthDef(
+	\foo,
+	{
+		arg out=0;
+		Out.ar(out, SinOsc.ar(440, 0, 0.1))
+	}
+).play(s, [], \addToTail);
+)
+
+~foo.free
