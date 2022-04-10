@@ -102,6 +102,15 @@ s.sampleRate
 
 ~recordb = Bus.audio(s, 1);
 
+~infilter = SynthDef(
+	\input_null,
+	{
+		arg in = 2, out = 4;
+		Out.ar(out, In.ar(in));
+	}
+).play(s, [\in, ~usbinput, \out, ~recordb]);
+
+
 ~granulatorb = Bus.audio(s, 2);
 
 // LFO bus and synth used to modulate the filter

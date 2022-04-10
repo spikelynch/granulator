@@ -5,7 +5,14 @@ Server.killAll
 Server.default.options.inDevice_("Scarlett 2i2 USB");
 
 
+
 // 3c:06:30:16:c1:50  192.168.0.11
+
+Quarks.install("~/Music/Supercollider/Quarks/TouchOSC")
+
+t = OSCSettings("192.168.0.209", 9000)
+
+t.port
 
 (
 
@@ -26,94 +33,6 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 
 ~patchdir = "~/Music/SuperCollider/Patches/granulator/";
 
-
-// instrument settings
-
-// ~sets is a dictionary with all of the settings
-// ~mset adds a setting to ~sets
-// a setting has a max, min, default, value, and an apply method
-// apply takes the current v and applies it to the synth(s)
-// converting between control values and real values is
-// done in the touchOSC section, below
-
-
-~sets = ();
-
-// The following two functions are the default methods for going from
-// touchOSC control settings (0-1) to setting values as defined by min,max.
-// Default uses linlin - for linexp or fancier stuff, override them.
-// It's up to you to make sure they're mathematically inverse.
-
-
-
-~ctrlset = { | self, msg | self.v = msg[1].linlin(0, 1, self.min, self.max); };
-
-~ctrlget = { | self |        self.v.linlin(self.min, self.max, 0, 1) };
-
-~ctrlexpset = { | self, msg | self.v = msg[1].linexp(0, 1, self.min, self.max); };
-
-~ctrlexpget = { | self |        self.v.linlin(self.min, self.max, 0, 1) };
-
-
-// getter and setter for an x-y control - the default, max and min are arrays
-// of [ x, y ] pairs
-
-// note: msg is what we get from the OSC and x = 1, y = 2
-
-~ctrlxyset = {
-	| self, msg |
-	self.v[0] = msg[1].linlin(0, 1, self.min[0], self.max[0]);
-	self.v[1] = msg[2].linlin(0, 1, self.min[1], self.max[1]);
-};
-
-~ctrlxyget = {
-	| self |
-	var vals = [ 0, 0 ];
-	vals[0] = self.v[0].linlin(self.min[0], self.max[0], 0, 1);
-	vals[1] = self.v[1].linlin(self.min[1], self.max[1], 0, 1);
-	vals;
-};
-
-
-// ~ctrlsend sends the current self.v back to the TouchOSC control,
-// for when we send the defaults or load a patch
-
-~ctrlsend = {
-	| self |
-	var ctrlval = self.ctrlget();
-	[ "ctrlsend", self.oscurl, ctrlval ].postln;
-	~touchosc.sendMsg(self.oscurl, ctrlval);
-};
-
-// TODO: each of these needs to be able to write its value back
-// to its TouchOSC control - this should be a fairly simple
-// method like ~ctrlset and ~ctrlget
-
-// then call all of those on an iterator at startup to write the
-// defaults to the controller
-
-~mset = {
-	| name, oscurl, min, max, default, apply=({}), ctrlset=(~ctrlset), ctrlget=(~ctrlget), ctrlsend=(~ctrlsend) |
-	~sets.put(name, (
-		name: name,
-		oscurl: oscurl,
-		default: default,
-		min: min,
-		max: max,
-		v: default,
-		ctrlset: ctrlset,
-		ctrlget: ctrlget,
-		ctrlsend: ctrlsend,
-		apply: apply
-	));
-	OSCdef.new(
-		'osc' ++ name,
-		{ | msg |
-			~sets.at(name).ctrlset(msg);
-			~sets.at(name).apply() },
-		oscurl
-	);
-};
 
 
 // sidebar controls
@@ -272,7 +191,7 @@ OSCdef.new(
 
 // ~infilter = SynthDef(
 // 	\input_null,
-// 	{
+// 	{x
 // 		arg in = 2, out = 4;
 // 		Out.ar(out, In.ar(in));
 // 	}
