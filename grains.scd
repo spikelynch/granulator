@@ -149,12 +149,16 @@ s.sampleRate
 	\pitch,
 	{
 		arg out, posb, triggerb, track=1, dir=1, detune=0.0, chorus=0, harmonic=2;
-		var base, chor;
-		base = dir * Schmidt.kr(Slope.kr(posb), 0, 0) * 2 - 1;
-		chor = chorus * harmonic.pow((Latch.kr(WhiteNoise.kr(), In.kr(triggerb)) + 0.5).floor) + (1 - chorus);
-		Out.kr(out, base * chor);
+		var tracking, base, chor, det, csig, dsig;
+		csig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
+		dsig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
+		tracking = Schmidt.kr(Slope.kr(posb), 0, 0) * 2 - 1;
+		base = dir * (track * tracking + (1 - track));
+		det = detune * dsig + 1;
+		chor = chorus * harmonic.pow(csig + 0.5).floor + (1 - chorus);
+		Out.kr(out, base * chor * det);
 	}
-).play(s, [ \out, ~pitchb, \triggerb, ~triggerb, \posb, ~playbacklfob, \dir, 1, ]);
+).play(s, [ \out, ~pitchb, \triggerb, ~triggerb, \posb, ~playbacklfob, \dir, 1, \track, 0]);
 
 
 
@@ -188,11 +192,10 @@ s.sampleRate
 		trigger = Impulse.kr(120);
 		pitch = In.kr(pitchb);
 		blen = BufDur.kr(buffer);
-		//pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
-		pos = In.kr(posb, 1) * blen;
+		pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
 		pans = pan + WhiteNoise.kr(jitter) + (track * (In.kr(posb, 1) - 1));
 		filtfreq = (In.kr(modb, 1) * freq * 0.5) + freq;
-		grains = TGrains.ar(2, trigger, buffer, 1, pos, size, pans, amp);
+		grains = TGrains.ar(2, trigger, buffer, pitch, pos * blen, size, pans, amp);
 		Out.ar(out, RLPF.ar(grains, filtfreq, rq));
 	}
 ).play(s, [
@@ -231,14 +234,6 @@ s.sampleRate
 // s.sync(); // this needs to be done in a routine because it calls yield
 // sidebar -
 
-ServerMeter.new(s, 8, 8);
-
-~mixer.set(\in, 0);
-~recordb;
-
-~monitor.set(\in, ~usbinput);
-
-~mixer.set(\in, 0);
 
 (
 
@@ -302,9 +297,9 @@ OSCdef.freeAll;
 
 ~to.slider('/grains/buffer', 0, TouchOSCScale(0, 1), {});
 
-~to.xy('/grains/speed', [ 1, 40 ], TouchOSCScale(0, 2), TouchOSCScale(0, 120), { | v |
-	~playbacklfo.set(\speed, v[0] / ~buflen);
-	~trigger.set(\freq, v[1]);
+~to.xy('/grains/speed', [ 1, 120 ], TouchOSCScale(0, 2), TouchOSCScale(0, 240), { | v |
+	~playbacklfo.set(\speed, v[0]);
+	~trigger.set(\freq, v[1] / ~buflen);
 });
 
 ~to.button('/grains/mode', 0, { |v|
@@ -315,7 +310,7 @@ OSCdef.freeAll;
 		~granulator.set(\posb, mode[1]);
 		~playbacklfo = mode[0];
 		~playbacklfob = mode[1];
-		~playbacklfo.set(\speed, ~to.v('/grains/speed')[0]);
+		~playbacklfo.set(\speed, ~to.v('/grains/speed')[0] / ~buflen);
 	}, {
 		[ "Bad mode index", v ].postln;
 	});
@@ -348,9 +343,12 @@ OSCdef.freeAll;
 
 ~to.button('/grainfx/chorus', 0, { |v| ~pitch.set(\chorus, v) });
 
+~to.slider('/grainfx/detune', 0, TouchOSCScale(0, 0.059),  { |v| ~pitch.set(\detune, v) });
+
+
 ~to.slider('/grainfx/pan', 0,    TouchOSCScale(-1, 1), { |v| ~granulator.set(\pan, v) });
-~to.slider('/grainfx/track', 0,  TouchOSCScale(-1, 1), { |v| ~granulator.set(\track, v) });
-~to.slider('/grainfx/jitter', 0, TouchOSCScale(0, 1), { |v| ~granulator.set(\jitter, v) });
+~to.slider('/grainfx/track', 0.5,  TouchOSCScale(-1, 1), { |v| ~granulator.set(\track, v) });
+~to.slider('/grainfx/jitter', 0.25, TouchOSCScale(0, 1), { |v| ~granulator.set(\jitter, v) });
 
 
 
@@ -365,6 +363,7 @@ OSCdef.freeAll;
 // 	{ |self, ctrlv | self.v = 2.pow((ctrlv * 3).floor) },
 // 	{ |self|         self.v.log2.floor / 3; }
 // );
+
 
 
 ~to.xy(
@@ -399,6 +398,7 @@ OSCdef.freeAll;
 ~posdisplay.stop;
 
 ~playbacklfob;
+~pitchb.scope;
 
 ~posb;
 
