@@ -126,6 +126,37 @@ s.sampleRate
 ).play(s, [\out, ~lfob, \freq, 1, \amp, 0]);
 
 
+// a kr synth which triggers grains
+
+~triggerb = Bus.control(s, 1);
+
+~trigger = SynthDef(
+    \trigger,
+	{
+		arg out, freq=1, dust=0;
+		Out.kr(out, Impulse.kr(freq) * (1 - dust)) + (Dust.kr(freq) * dust);
+}
+).play(s, [ \out, ~triggerb, \freq, 120, \dust, 0 ]);
+
+
+
+// a kr synth which is used to control the granulator
+// playback rate.
+
+~pitchb = Bus.control(s, 1);
+
+~pitch = SynthDef(
+	\pitch,
+	{
+		arg out, posb, triggerb, track=1, dir=1, detune=0.0, chorus=0, harmonic=2;
+		var base, chor;
+		base = dir * Schmidt.kr(Slope.kr(posb), 0, 0) * 2 - 1;
+		chor = chorus * harmonic.pow((Latch.kr(WhiteNoise.kr(), In.kr(triggerb)) + 0.5).floor) + (1 - chorus);
+		Out.kr(out, base * chor);
+	}
+).play(s, [ \out, ~pitchb, \triggerb, ~triggerb, \posb, ~playbacklfob, \dir, 1, ]);
+
+
 
 // buffer recorder
 
@@ -145,24 +176,34 @@ s.sampleRate
 
 // the main granulator synth
 
-// todo - different styles of trigger
+// note - connect size back to the trigger rate?
+
+// todo - take the filter out of this
 
 ~granulator = SynthDef(
 	\grainsynth,
 	{
-		arg out=0, modb, trate=120, size=12, rate=1, posb=5, amp=1.0, freq=10000, rq=0.3, pan=0, track=0.25, jitter=0, chorus=0.0, blur=0.0, dust = 0, buffer;
-		var dur, blen, clk, chor, pos, pans, grains, filtfreq;
-		dur = size / trate;
-		clk = (Impulse.kr(trate) * (1 - dust)) + (Dust.kr(trate) * dust);
-		chor = chorus * 2.pow((LFNoise0.kr(trate) + 0.5).floor) + (1 - chorus);
+		arg out=0, buffer, pitchb, triggerb, posb, modb, size=0.1, amp=1.0, freq=10000, rq=0.3, pan=0, track=0.25, jitter=0, blur=0.0;
+		var pitch, blen, trigger, chor, pos, pans, grains, filtfreq;
+		trigger = Impulse.kr(120);
+		pitch = In.kr(pitchb);
 		blen = BufDur.kr(buffer);
-		pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
+		//pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
+		pos = In.kr(posb, 1) * blen;
 		pans = pan + WhiteNoise.kr(jitter) + (track * (In.kr(posb, 1) - 1));
 		filtfreq = (In.kr(modb, 1) * freq * 0.5) + freq;
-		grains = TGrains.ar(2, clk, buffer, chor * rate, pos * blen, dur, pans, amp);
+		grains = TGrains.ar(2, trigger, buffer, 1, pos, size, pans, amp);
 		Out.ar(out, RLPF.ar(grains, filtfreq, rq));
 	}
-).play(s, [\out, ~granulatorb, \buffer, ~frippbuffer, \posb, ~grainsawb, \modb, ~lfob]);
+).play(s, [
+	\out, ~granulatorb,
+	\buffer, ~frippbuffer,
+	\posb, ~playbacklfob,
+	\triggerb, ~triggerb,
+	\pitchb, ~pitchb,
+	\modb, ~lfob,
+	\size, 0.1
+]);
 
 ~mixerb = Bus.audio(s, 2); // this is what we will record from
 
@@ -203,6 +244,7 @@ ServerMeter.new(s, 8, 8);
 
 
 OSCdef.freeAll;
+
 ~to.button('/record', 1, { | v | ~bufrecorder.set(\record, v) });
 
 
@@ -262,7 +304,7 @@ OSCdef.freeAll;
 
 ~to.xy('/grains/speed', [ 1, 40 ], TouchOSCScale(0, 2), TouchOSCScale(0, 120), { | v |
 	~playbacklfo.set(\speed, v[0] / ~buflen);
-	~granulator.set(\trate, v[1] / ~buflen);
+	~trigger.set(\freq, v[1]);
 });
 
 ~to.button('/grains/mode', 0, { |v|
@@ -279,8 +321,8 @@ OSCdef.freeAll;
 	});
 });
 
-~to.button('/grains/dust',   0, { |v| ~granulator.set(\dust, v) });
-~to.slider('/grainf/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
+~to.button('/grains/dust',   0, { |v| ~trigger.set(\dust, v) });
+~to.slider('/grains/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
 
 
 // todo vvv quantise speed should be swappable
@@ -294,16 +336,17 @@ OSCdef.freeAll;
 
 
 
-~to.slider('/grains/size', 12, TouchOSCScale(0, 20),{ |v| ~granulator.set(\size, v) });
+~to.slider('/grains/size', 0.1, TouchOSCScale(0, 0.5),{
+	|v| ~granulator.set(\size, v)
+});
 
 // Page 2: grainfx
 
-~to.slider('/grains/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
-~to.button('/grainfx/back',   0, { |v| ~granulator.set(\rate, if( v > 0, { -1 }, { 1}))});
+~to.button('/grainfx/back',   0, { |v| ~pitch.set(\dir, if( v > 0, { -1 }, { 1}))});
 
-~to.button('/grainfx/slope',   1, { |v| });
+~to.button('/grainfx/slope',   1, { |v| ~pitch.set(\track, v) });
 
-~to.button('/grainfx/chorus', 0, { |v| ~granulator.set(\chorus, v) });
+~to.button('/grainfx/chorus', 0, { |v| ~pitch.set(\chorus, v) });
 
 ~to.slider('/grainfx/pan', 0,    TouchOSCScale(-1, 1), { |v| ~granulator.set(\pan, v) });
 ~to.slider('/grainfx/track', 0,  TouchOSCScale(-1, 1), { |v| ~granulator.set(\track, v) });
@@ -338,9 +381,6 @@ OSCdef.freeAll;
 ~to.slider('/fx/lfofreq',  0.5,TouchOSCScale(0.001, 4),   { |v| ~lfo.set(\freq, v) } );
 ~to.slider('/fx/lfoamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfo.set(\amp, v) });
 
-)
-
-(
 ~posdisplay = Task.new({
 	{
 		~playbacklfob.get({ | v |
@@ -361,3 +401,5 @@ OSCdef.freeAll;
 ~playbacklfob;
 
 ~posb;
+
+~frippbuffer.write("/Users/mike/Music/buffer.aiff")
