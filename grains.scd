@@ -1,16 +1,7 @@
-Server.killAll
-
 // Execute this before booting the server
 
 Server.default.options.inDevice_("Scarlett 2i2 USB");
 
-// TODO - FIXME
-
-// [X] mode switching isn't working
-// [ ] playback speed isn't working
-// [ ] lfo filter modulation isn't working
-// [ ] setting parameters from defaults at startup like passthrough
-s.sampleRate
 
 (
 
@@ -97,7 +88,6 @@ s.sampleRate
 // audio buses
 
 // recordb = input to bufrecorder
-// granulatorb = output from granulator
 
 
 ~recordb = Bus.audio(s, 1);
@@ -113,17 +103,25 @@ s.sampleRate
 
 ~granulatorb = Bus.audio(s, 2);
 
-// LFO bus and synth used to modulate the filter
+// LFO buses and synths
 
-~lfob = Bus.control(s, 1);
+~lfoab = Bus.control(s, 1);
+~lfobb = Bus.control(s, 1);
+~lfocb = Bus.control(s, 1);
 
-~lfo = SynthDef(
+~lfoa =SynthDef(
 	\lfo,
 	{
 		arg out=5, freq=1, amp=0;
 		Out.kr(out, SinOsc.kr(freq, 0, amp));
 	}
-).play(s, [\out, ~lfob, \freq, 1, \amp, 0]);
+).play(s, [\out, ~lfoab]);
+
+// These need to wait till the \lfo definition arrives at the server
+
+// ~lfoa = Synth(\lfo, [\out, ~lfoab ]);
+// ~lfob = Synth(\lfo, [\out, ~lfobb ]);
+// ~lfoc = Synth(\lfo, [\out, ~lfocb ]);
 
 
 // a kr synth which triggers grains
@@ -150,12 +148,12 @@ s.sampleRate
 	{
 		arg out, posb, triggerb, track=1, dir=1, detune=0.0, chorus=0, harmonic=2;
 		var tracking, base, chor, det, csig, dsig;
-		csig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
-		dsig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
+		// csig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
+		// dsig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
 		tracking = Schmidt.kr(Slope.kr(posb), 0, 0) * 2 - 1;
 		base = dir * (track * tracking + (1 - track));
-		det = detune * dsig + 1;
-		chor = chorus * harmonic.pow(csig + 0.5).floor + (1 - chorus);
+		det = detune * LFNoise1.kr(120) + 1;
+		chor = chorus * harmonic.pow(LFNoise1.kr(120) + 0.5).floor + (1 - chorus);
 		Out.kr(out, base * chor * det);
 	}
 ).play(s, [ \out, ~pitchb, \triggerb, ~triggerb, \posb, ~playbacklfob, \dir, 1, \track, 0]);
@@ -180,23 +178,19 @@ s.sampleRate
 
 // the main granulator synth
 
-// note - connect size back to the trigger rate?
-
-// todo - take the filter out of this
 
 ~granulator = SynthDef(
 	\grainsynth,
 	{
-		arg out=0, buffer, pitchb, triggerb, posb, modb, size=0.1, amp=1.0, freq=10000, rq=0.3, pan=0, track=0.25, jitter=0, blur=0.0;
+		arg out=0, buffer, pitchb, triggerb, posb, modb, size=0.1, amp=1.0, pan=0, track=0.25, jitter=0, blur=0.0;
 		var pitch, blen, trigger, chor, pos, pans, grains, filtfreq;
 		trigger = Impulse.kr(120);
 		pitch = In.kr(pitchb);
 		blen = BufDur.kr(buffer);
 		pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
 		pans = pan + WhiteNoise.kr(jitter) + (track * (In.kr(posb, 1) - 1));
-		filtfreq = (In.kr(modb, 1) * freq * 0.5) + freq;
 		grains = TGrains.ar(2, trigger, buffer, pitch, pos * blen, size, pans, amp);
-		Out.ar(out, RLPF.ar(grains, filtfreq, rq));
+		Out.ar(out, grains);
 	}
 ).play(s, [
 	\out, ~granulatorb,
@@ -208,28 +202,87 @@ s.sampleRate
 	\size, 0.1
 ]);
 
-~mixerb = Bus.audio(s, 2); // this is what we will record from
+// mixing and effects
 
-~mixer = SynthDef(
-	\mixer_synth,
+~fxb = Bus.audio(s, 2);
+~filterb = Bus.audio(s, 2);
+~grainsb = Bus.audio(s, 2);
+~delayb = Bus.audio(s, 2);
+~reverbb = Bus.audio(s, 2);
+
+~grainmixer = SynthDef(
+	\grain_mixer,
 	{
-		arg in = 2, gbus = 4, out = 0, amp = 1.0, passthrough = 0.0;
-		//Out.ar(out, In.ar(gbus, 2));
-		Out.ar(out, (amp * In.ar(gbus, 2)) + (passthrough * In.ar(~recordb, 1) ! 2));
+		arg in = 2, gbus = 4, out = 0, passthrough = 0.2;
+		Out.ar(out, (In.ar(gbus, 2)) + (passthrough * In.ar(~recordb, 1) ! 2));
 	}
-).play(s, [\in, ~usbinput, \out, ~mixerb, \gbus, ~granulatorb, \amp, 1.0, \passthrough, 0.0], \addToTail);
+).play(s, [\in, ~usbinput, \out, ~fxb, \gbus, ~granulatorb ], \addToTail);
 
 
+~filter = SynthDef(
+	\filter, {
+		arg in, out, mod, freq=10000, res=0.3, amp=1.0;
+		var filt, lfo;
+		lfo = LinExp.kr(In.kr(mod, 1), -1, 1, freq * 0.5, freq * 2);
+		filt = RLPF.ar(In.ar(in, 2) * amp, lfo, res);
+		Out.ar(out, filt);
+	}
+).play(s, [ \in, ~fxb, \out, ~filterb, \mod, ~lfoab, \amp, 0.5 ], \addToTail);
+
+
+
+
+// delay always passes through 100% of its input + amp % of the delay
+
+
+~delay = SynthDef(
+    \delay, {
+		arg in, out, maxdelay=1, delaytime=0.2, decaytime=0.1, amp=0.5;
+		var sig = In.ar(in, 2), del;
+		del = CombC.ar(sig, maxdelay, delaytime, decaytime, amp);
+		Out.ar(out, sig + del);
+	}
+).play(s, [ \in, ~filterb, \out, ~delayb ], \addToTail);
+
+~reverb = SynthDef(
+	\reverb, {
+		arg in, out, mix=0.33, room=0.5, damp=0.5, amp=0.25;
+		var input = In.ar(in, 2);
+		Out.ar(out, input + FreeVerb2.ar(input[0], input[1], mix, room, damp, amp));
+	}
+).play(s, [ \in, ~delayb, \out, 0 ], \addToTail);
+
+
+)
+
+
+~recordb.scope;
+~grainmixer.set(\amp, 0.5);
+
+
+~fxb.scope;
+
+~filter.set(\amp, 1);
+
+~granulatorb.scope;
+~reverbb.scope
+
+(
 ~monitor = SynthDef(
 	\monitor_synth,
 	{
 		arg in=2, out=0;
 		Out.ar(out, In.ar(in, 2))
 	}
-).play(s, [\in, ~mixerb, \out, 0 ], \addToTail);
+).play(s, [\in, ~fxb, \out, 0 ], \addToTail);
 
-// sync the server so that all the synths are ready for the touchosc stuff
 )
+
+~monitor.set(\in, ~reverbb)
+
+~monitor.free
+
+
 
 // s.sync(); // this needs to be done in a routine because it calls yield
 // sidebar -
@@ -260,7 +313,7 @@ OSCdef.freeAll;
 
 ~to.slider('/mix', 0.25, TouchOSCScale(0, 1),        { |v| ~bufrecorder.set(\mix, v) } );
 ~to.slider('/gain', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
-~to.slider('/passthrough', 0.5, TouchOSCScale(0, 1), { |v| ~mixer.set(\passthrough, v) } );
+~to.slider('/passthrough', 0.5, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) } );
 
 ~to.slider('/feedback',  0, TouchOSCScale(0, 0.25), { |v|
 	~bufrecorder.set(\feedback, v) } );
@@ -365,20 +418,41 @@ OSCdef.freeAll;
 // );
 
 
-
-~to.xy(
-	'/fx/filter',
-	[ 10000, 0.3 ],
-	TouchOSCScale(200, 10000),
-    TouchOSCScale(0.1, 1),
-	{ |v|
-		~granulator.set(\freq, v[0]);
-		~granulator.set(\res,  v[1]);
-	}
+~to.slider(
+	'/fx/filterfreq',
+	10000, TouchOSCScaleExp(100, 10000), { |v| ~filter.set(\freq, v) }
 );
 
-~to.slider('/fx/lfofreq',  0.5,TouchOSCScale(0.001, 4),   { |v| ~lfo.set(\freq, v) } );
-~to.slider('/fx/lfoamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfo.set(\amp, v) });
+~to.slider('/fx/filtermix',  0.2, TouchOSCScale(0, 1),   { |v| ~filter.set(\amp, v) } );
+
+~to.slider('/fx/delay',  0.2,TouchOSCScale(0, 1),   { |v| ~delay.set(\delaytime, v) } );
+~to.slider('/fx/decay',  1,  TouchOSCScale(0, 5),   { |v| ~delay.set(\decaytime, v) } );
+
+~to.slider('/fx/delaymix',   0.2, TouchOSCScale(0, 1),   { |v| ~delay.set(\amp, v) } );
+
+
+~to.slider('/fx/reverbwet',  0.33,TouchOSCScale(0, 1),   { |v| ~reverb.set(\mix, v) } );
+~to.slider('/fx/reverbroom',  0.5,TouchOSCScale(0, 1),   { |v| ~reverb.set(\room, v) } );
+~to.slider('/fx/reverbdamp',  0.5,TouchOSCScale(0, 1),   { |v| ~reverb.set(\damp, v) } );
+
+~to.slider('/fx/reverbmix',  0.2, TouchOSCScale(0, 1),   { |v| ~reverb.set(\amp, v) } );
+
+
+
+
+~to.slider('/lfos/afreq',  0.5,TouchOSCScale(0.001, 20),   { |v| ~lfoa.set(\freq, v) } );
+~to.slider('/lfos/aamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfoa.set(\amp, v) });
+
+~to.slider('/lfos/bfreq',  0.5,TouchOSCScale(0.001, 20),   { |v| ~lfob.set(\freq, v) } );
+~to.slider('/lfos/bamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfob.set(\amp, v) });
+
+~to.slider('/lfos/cfreq',  0.5,TouchOSCScale(0.001, 20),   { |v| ~lfoc.set(\freq, v) } );
+~to.slider('/lfos/camp',  0,   TouchOSCScale(0, 1),       { |v| ~lfoc.set(\amp, v) });
+
+
+)
+
+(
 
 ~posdisplay = Task.new({
 	{
@@ -392,14 +466,3 @@ OSCdef.freeAll;
 
 ~posdisplay.start;
 )
-
-~to.slider('/grains/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
-
-~posdisplay.stop;
-
-~playbacklfob;
-~pitchb.scope;
-
-~posb;
-
-~frippbuffer.write("/Users/mike/Music/buffer.aiff")

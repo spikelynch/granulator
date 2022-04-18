@@ -1,29 +1,31 @@
-TODO
+# TODO
 
-Immediate todo -
+## Granulator
 
-Separate out the stuff which controls playback rates from the
-granulator into its own Synth - this should output a kr signal
-for the rate which the granulator takes as an input
+Fix chorus and detune - why isn't it being triggered?
 
-What this Synth should be able to do:
+Add pitch shifting
 
-- tracking the slope of the playback lfo so that it can play grains
-  backwards when the playback is reversed
+Change harmonics for chorus
 
-- inverting playback (ie either play backwards all the time, or play
-  the opposite way from the playback lfo
+Lock harmonics to octaves / ratios
 
-- detuning
+## Effects chain
 
-- pitch shifting
+Add an effects chain like with midilooper
 
-- chorus
+-> filter -> reverb -> out
 
 
 
+## LFO mod
 
+Add the new-style lfo mods to filter
 
+## More LFO mods
 
-- Convert the granulator (including the buffer stuff) to a class
+Allow other settings to be modulated
 
+## Input filter
+
+Switch in and out a single input filter like distort, peak FFT, etc,
