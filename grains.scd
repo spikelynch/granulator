@@ -109,19 +109,25 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 ~lfobb = Bus.control(s, 1);
 ~lfocb = Bus.control(s, 1);
 
-~lfoa =SynthDef(
-	\lfo,
-	{
-		arg out=5, freq=1, amp=0;
-		Out.kr(out, SinOsc.kr(freq, 0, amp));
-	}
-).play(s, [\out, ~lfoab]);
 
-// These need to wait till the \lfo definition arrives at the server
+fork {
+	SynthDef(
+		\lfo,
+		{
+			arg out=5, freq=1, amp=0;
+			Out.kr(out, SinOsc.kr(freq, 0, amp));
+		}
+	).add;
 
-// ~lfoa = Synth(\lfo, [\out, ~lfoab ]);
-// ~lfob = Synth(\lfo, [\out, ~lfobb ]);
-// ~lfoc = Synth(\lfo, [\out, ~lfocb ]);
+	1.wait;
+
+	~lfoa = Synth(\lfo, [\out, ~lfoab ]);
+	~lfob = Synth(\lfo, [\out, ~lfobb ]);
+	~lfoc = Synth(\lfo, [\out, ~lfocb ]);
+	"LFOs initialised".postln;
+};
+
+
 
 
 // a kr synth which triggers grains
@@ -146,17 +152,31 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 ~pitch = SynthDef(
 	\pitch,
 	{
-		arg out, posb, triggerb, track=1, dir=1, detune=0.0, chorus=0, harmonic=2;
+		arg out, posb, triggerb, track=1, dir=1, detune=0.0, chorus=0, harmonics=2, pitch=0, quant=1;
 		var tracking, base, chor, det, csig, dsig;
 		// csig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
 		// dsig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
 		tracking = Schmidt.kr(Slope.kr(posb), 0, 0) * 2 - 1;
-		base = dir * (track * tracking + (1 - track));
+		base = 2.pow(pitch) * dir * (track * tracking + (1 - track));
 		det = detune * LFNoise1.kr(120) + 1;
-		chor = chorus * harmonic.pow(LFNoise1.kr(120) + 0.5).floor + (1 - chorus);
+		chor = chorus * harmonics.pow((LFNoise1.kr(120) * 2).round) + (1 - chorus);
 		Out.kr(out, base * chor * det);
 	}
 ).play(s, [ \out, ~pitchb, \triggerb, ~triggerb, \posb, ~playbacklfob, \dir, 1, \track, 0]);
+
+
+// pitch gets quantised to octaves from 3 below to 3 above.
+// NOTE: the pitch TouchOSC control is -1 to 1, not 0 to 1
+// min/max gets ignored because I'm overloading the ctrlset/get
+
+// TODO: fixme,
+
+// ~to.slider('/grainfx/pitch', -1, 1, 1,
+// 	{ |self| ~granulator.set("rate", self.v) },
+
+// 	{ |self, ctrlv | self.v = 2.pow((ctrlv * 3).floor) },
+// 	{ |self|         self.v.log2.floor / 3; }
+// );
 
 
 
@@ -219,6 +239,21 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 ).play(s, [\in, ~usbinput, \out, ~fxb, \gbus, ~granulatorb ], \addToTail);
 
 
+
+~filtermodb = Bus.control(s, 1);
+
+~filtermod = SynthDef(
+	\filtermod, {
+		arg out, a = 1.0, b = 0.0, c = 0.0;
+		var siga, sigb, sigc;
+		siga = In.kr(~lfoab) * a;
+		sigb = In.kr(~lfobb) * b;
+		sigc = In.kr(~lfocb) * c;
+		Out.kr(out, Wrap.kr(siga + sigb + sigc, -1, 1));
+	}
+).play(s, [\out, ~filtermodb, \a, 1, \b, 0, \c, 0 ]);
+
+
 ~filter = SynthDef(
 	\filter, {
 		arg in, out, mod, freq=10000, res=0.3, amp=1.0;
@@ -227,7 +262,9 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 		filt = RLPF.ar(In.ar(in, 2) * amp, lfo, res);
 		Out.ar(out, filt);
 	}
-).play(s, [ \in, ~fxb, \out, ~filterb, \mod, ~lfoab, \amp, 0.5 ], \addToTail);
+).play(s, [ \in, ~fxb, \out, ~filterb, \mod, ~filtermodb, \amp, 0.5 ], \addToTail);
+
+
 
 
 
@@ -256,16 +293,6 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 )
 
 
-~recordb.scope;
-~grainmixer.set(\amp, 0.5);
-
-
-~fxb.scope;
-
-~filter.set(\amp, 1);
-
-~granulatorb.scope;
-~reverbb.scope
 
 (
 ~monitor = SynthDef(
@@ -282,7 +309,7 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 
 ~monitor.free
 
-
+~pitchb.scope()
 
 // s.sync(); // this needs to be done in a routine because it calls yield
 // sidebar -
@@ -394,28 +421,28 @@ OSCdef.freeAll;
 
 ~to.button('/grainfx/slope',   1, { |v| ~pitch.set(\track, v) });
 
-~to.button('/grainfx/chorus', 0, { |v| ~pitch.set(\chorus, v) });
-
-~to.slider('/grainfx/detune', 0, TouchOSCScale(0, 0.059),  { |v| ~pitch.set(\detune, v) });
-
 
 ~to.slider('/grainfx/pan', 0,    TouchOSCScale(-1, 1), { |v| ~granulator.set(\pan, v) });
 ~to.slider('/grainfx/track', 0.5,  TouchOSCScale(-1, 1), { |v| ~granulator.set(\track, v) });
 ~to.slider('/grainfx/jitter', 0.25, TouchOSCScale(0, 1), { |v| ~granulator.set(\jitter, v) });
 
 
+~to.button('/grainfx/chorus', 0, { |v| ~pitch.set(\chorus, v) });
 
-// pitch gets quantised to octaves from 3 below to 3 above.
-// NOTE: the pitch TouchOSC control is -1 to 1, not 0 to 1
-// min/max gets ignored because I'm overloading the ctrlset/get
+~to.slider('/grainfx/detune', 0, TouchOSCScale(0, 0.059),  { |v| ~pitch.set(\detune, v) });
 
-// TODO: fixme,
-
-// ~to.slider('/grainfx/pitch', -1, 1, 1,
-// 	{ |self| ~granulator.set("rate", self.v) },
-// 	{ |self, ctrlv | self.v = 2.pow((ctrlv * 3).floor) },
-// 	{ |self|         self.v.log2.floor / 3; }
-// );
+~to.slider('/grainfx/pitch', 0, TouchOSCScale(-2, 2),      { |v| ~pitch.set(\pitch, v.round) });
+~to.button('/grainfx/quant', 1, { |v| ~pitch.set(\quant, v) });
+~to.slider('/grainfx/harmonics', 2, TouchOSCScale(0.1, 3),  { |v|
+	if(~to.v('/grainfx/quant') > 0, {
+		var qv = v.asFraction(5);
+		[ "quantised harmonic", qv ].postln;
+		~pitch.set(\harmonics, qv[0] / qv[1]);
+	},
+	{
+		~pitch.set(\harmonics, v);
+	});
+});
 
 
 ~to.slider(
@@ -423,7 +450,12 @@ OSCdef.freeAll;
 	10000, TouchOSCScaleExp(100, 10000), { |v| ~filter.set(\freq, v) }
 );
 
-~to.slider('/fx/filtermix',  0.2, TouchOSCScale(0, 1),   { |v| ~filter.set(\amp, v) } );
+~to.slider('/fx/filtermix',  0.8, TouchOSCScale(0, 1),   { |v| ~filter.set(\amp, v) } );
+
+~to.button('/fx/filtermoda', 1, { |v| ~filtermod.set(\a, v) });
+~to.button('/fx/filtermodb', 0, { |v| ~filtermod.set(\b, v) });
+~to.button('/fx/filtermodc', 0, { |v| ~filtermod.set(\c, v) });
+
 
 ~to.slider('/fx/delay',  0.2,TouchOSCScale(0, 1),   { |v| ~delay.set(\delaytime, v) } );
 ~to.slider('/fx/decay',  1,  TouchOSCScale(0, 5),   { |v| ~delay.set(\decaytime, v) } );
@@ -439,14 +471,15 @@ OSCdef.freeAll;
 
 
 
+// note - the three LFOs have different rate ranges
 
-~to.slider('/lfos/afreq',  0.5,TouchOSCScale(0.001, 20),   { |v| ~lfoa.set(\freq, v) } );
+~to.slider('/lfos/afreq',  0.5,TouchOSCScale(0.001, 2),   { |v| ~lfoa.set(\freq, v) } );
 ~to.slider('/lfos/aamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfoa.set(\amp, v) });
 
-~to.slider('/lfos/bfreq',  0.5,TouchOSCScale(0.001, 20),   { |v| ~lfob.set(\freq, v) } );
+~to.slider('/lfos/bfreq',  0.5,TouchOSCScale(0.01, 20),   { |v| ~lfob.set(\freq, v) } );
 ~to.slider('/lfos/bamp',  0,   TouchOSCScale(0, 1),       { |v| ~lfob.set(\amp, v) });
 
-~to.slider('/lfos/cfreq',  0.5,TouchOSCScale(0.001, 20),   { |v| ~lfoc.set(\freq, v) } );
+~to.slider('/lfos/cfreq',  0.5,TouchOSCScale(0.1, 200),   { |v| ~lfoc.set(\freq, v) } );
 ~to.slider('/lfos/camp',  0,   TouchOSCScale(0, 1),       { |v| ~lfoc.set(\amp, v) });
 
 
@@ -466,3 +499,12 @@ OSCdef.freeAll;
 
 ~posdisplay.start;
 )
+
+~pitch.set(\harmonics, 1.5);
+
+~pitchb.scope
+
+2.pow(3)
+-2.49.round
+
+2.4534534.asFraction(7)
