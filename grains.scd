@@ -138,7 +138,7 @@ fork {
     \trigger,
 	{
 		arg out, freq=1, dust=0;
-		Out.kr(out, Impulse.kr(freq) * (1 - dust)) + (Dust.kr(freq) * dust);
+		Out.kr(out, (Impulse.kr(freq) * (1 - dust)) + (Dust.kr(freq) * dust));
 }
 ).play(s, [ \out, ~triggerb, \freq, 120, \dust, 0 ]);
 
@@ -154,12 +154,12 @@ fork {
 	{
 		arg out, posb, triggerb, track=1, dir=1, detune=0.0, chorus=0, harmonics=2, pitch=0, quant=1;
 		var tracking, base, chor, det, csig, dsig;
-		// csig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
-		// dsig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
+		csig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
+		dsig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
 		tracking = Schmidt.kr(Slope.kr(posb), 0, 0) * 2 - 1;
 		base = 2.pow(pitch) * dir * (track * tracking + (1 - track));
-		det = detune * LFNoise1.kr(120) + 1;
-		chor = chorus * harmonics.pow((LFNoise1.kr(120) * 2).round) + (1 - chorus);
+		det = detune * dsig + 1;
+		chor = chorus * harmonics.pow((csig * 2).round) + (1 - chorus);
 		Out.kr(out, base * chor * det);
 	}
 ).play(s, [ \out, ~pitchb, \triggerb, ~triggerb, \posb, ~playbacklfob, \dir, 1, \track, 0]);
@@ -204,7 +204,8 @@ fork {
 	{
 		arg out=0, buffer, pitchb, triggerb, posb, modb, size=0.1, amp=1.0, pan=0, track=0.25, jitter=0, blur=0.0;
 		var pitch, blen, trigger, chor, pos, pans, grains, filtfreq;
-		trigger = Impulse.kr(120);
+		//trigger = Impulse.kr(120);
+		trigger = In.kr(triggerb);
 		pitch = In.kr(pitchb);
 		blen = BufDur.kr(buffer);
 		pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
@@ -377,7 +378,7 @@ OSCdef.freeAll;
 
 ~to.slider('/grains/buffer', 0, TouchOSCScale(0, 1), {});
 
-~to.xy('/grains/speed', [ 1, 120 ], TouchOSCScale(0, 2), TouchOSCScale(0, 240), { | v |
+~to.xy('/grains/speed', [ 1, 120 ], TouchOSCScale(0, 2), TouchOSCScale(0, 640), { | v |
 	~playbacklfo.set(\speed, v[0]);
 	~trigger.set(\freq, v[1] / ~buflen);
 });
@@ -432,12 +433,15 @@ OSCdef.freeAll;
 ~to.slider('/grainfx/detune', 0, TouchOSCScale(0, 0.059),  { |v| ~pitch.set(\detune, v) });
 
 ~to.slider('/grainfx/pitch', 0, TouchOSCScale(-2, 2),      { |v| ~pitch.set(\pitch, v.round) });
-~to.button('/grainfx/quant', 1, { |v| ~pitch.set(\quant, v) });
-~to.slider('/grainfx/harmonics', 2, TouchOSCScale(0.1, 3),  { |v|
+
+~to.button('/grainfx/quant', 1, { |v|
+	~pitch.set(\quant, v);
+	~to.v_('/grainfx/harmonics', ~to.v('/grainfx/harmonics'));
+});
+
+~to.slider('/grainfx/harmonics', 2, TouchOSCScale(0.1, 4),  { |v|
 	if(~to.v('/grainfx/quant') > 0, {
-		var qv = v.asFraction(5);
-		[ "quantised harmonic", qv ].postln;
-		~pitch.set(\harmonics, qv[0] / qv[1]);
+		~pitch.set(\harmonics, v.round);
 	},
 	{
 		~pitch.set(\harmonics, v);
@@ -504,7 +508,37 @@ OSCdef.freeAll;
 
 ~pitchb.scope
 
+~trigger.set(\dust,0);
+
+(
+~testpitchb = Bus.control(s, 1);
+
+~test = SynthDef(
+	\testpitch,
+	{
+		arg out, triggerb;
+		var csig, dsig, chor;
+		csig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
+		//dsig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
+		chor = 2.pow((csig * 2).round);
+		Out.kr(out, chor);
+	}
+).play(s, [ \out, ~testpitchb, \triggerb, ~triggerb ]);
+)
+
+~test.free
+
 2.pow(3)
 -2.49.round
 
 2.4534534.asFraction(7)
+
+(
+~trig2 = SynthDef(
+    \trig2,
+	{
+		arg out, freq=1, dust=0;
+		Out.kr(out, Impulse.kr(freq) * (1 - dust)) + (Dust.kr(freq) * dust);
+}
+).play(s, [ \out, ~triggerb, \freq, 120, \dust, 0 ]);
+
