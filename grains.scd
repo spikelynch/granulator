@@ -1,6 +1,11 @@
 // Execute this before booting the server
 
+(
 Server.default.options.inDevice_("Scarlett 2i2 USB");
+Server.default.options.outDevice_("Scarlett 2i2 USB");
+)
+Server.killAll;
+~frippbuffer.write("/Users/mike/Music/SuperCollider Recordings/slow.aiff");
 
 
 (
@@ -8,6 +13,10 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 ~to = TouchOSC("192.168.0.209", 9000);
 
 ~usbinput = 2;
+
+~usbinput1 = 2;
+
+~usbinput2 = 3;
 
 
 ~buflen = 4.0;
@@ -30,7 +39,7 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 	\grainsin,
 	{
 		arg out=5, speed=1;
-		Out.kr(out, 0.5 + SinOsc.kr(speed, 0, 0.5));
+		Out.kr(out, 0.5 + SinOsc.kr(speed * 0.5, 0, 0.5));
 	}
 ).play(s, [\out, ~grainsinb, \speed, 1]);
 
@@ -64,6 +73,19 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 	}
 ).play(s, [\out, ~graintrib, \speed, 1]);
 
+
+~grainstepb = Bus.control(s, 1);
+
+~grainstep = SynthDef(
+	\grainstep,
+	{
+		arg out=5, speed=1, steps=8;
+		var stepwise = LFSaw.kr(speed, 0.0, 0.5 * steps, 0.5 * steps).floor;
+		Out.kr(out, stepwise / steps);
+	}
+).play(s, [\out, ~grainstepb, \speed, 1]);
+
+
 ~grainrandb = Bus.control(s, 1);
 
 ~grainrand = SynthDef(
@@ -79,7 +101,7 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 	[ ~grainsaw, ~grainsawb, "saw" ],
 	[ ~grainreverse, ~grainreverseb, "reverse", ],
 	[ ~grainsin, ~grainsinb, "sine" ],
-	[ ~graintri, ~graintrib, "triangle" ],
+	[ ~grainstep, ~grainstepb, "step" ],
 	[ ~grainrand, ~grainrandb, "random" ]
 ];
 
@@ -92,13 +114,21 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 
 ~recordb = Bus.audio(s, 1);
 
-~infilter = SynthDef(
+// ~infilter = SynthDef(
+// 	\input_null,
+// 	{
+// 		arg in = 2, out = 4;
+// 		Out.ar(out, In.ar(in));
+// 	}
+// ).play(s, [\in, ~usbinput, \out, ~recordb]);
+
+~inmixer = SynthDef(
 	\input_null,
 	{
-		arg in = 2, out = 4;
-		Out.ar(out, In.ar(in));
+		arg in1 = 2, in2 = 3, out = 4;
+		Out.ar(out, In.ar(in1) + In.ar(in2));
 	}
-).play(s, [\in, ~usbinput, \out, ~recordb]);
+).play(s, [\in1, ~usbinput1, \in2, ~usbinput2, \out, ~recordb]);
 
 
 ~granulatorb = Bus.audio(s, 2);
@@ -151,6 +181,7 @@ fork {
 
 ~pitch = SynthDef(
 	\pitch,
+
 	{
 		arg out, posb, triggerb, track=1, dir=1, detune=0.0, chorus=0, harmonics=2, pitch=0, quant=1;
 		var tracking, base, chor, det, csig, dsig;
@@ -234,10 +265,10 @@ fork {
 ~grainmixer = SynthDef(
 	\grain_mixer,
 	{
-		arg in = 2, gbus = 4, out = 0, passthrough = 0.2;
-		Out.ar(out, (In.ar(gbus, 2)) + (passthrough * In.ar(~recordb, 1) ! 2));
+		arg in=2, gbus=4, out=0, passthrough=0.75, grains=0.75;
+		Out.ar(out, (grains * In.ar(gbus, 2)) + (passthrough * In.ar(~recordb, 1) ! 2));
 	}
-).play(s, [\in, ~usbinput, \out, ~fxb, \gbus, ~granulatorb ], \addToTail);
+).play(s, [\in, ~usbinput, \gbus, ~granulatorb, \out, ~fxb ], \addToTail);
 
 
 
@@ -274,46 +305,28 @@ fork {
 
 
 ~delay = SynthDef(
-    \delay, {
-		arg in, out, maxdelay=1, delaytime=0.2, decaytime=0.1, amp=0.5;
-		var sig = In.ar(in, 2), del;
-		del = CombC.ar(sig, maxdelay, delaytime, decaytime, amp);
+ 	\delay, {
+ 		arg in, out, maxdelay=1, delaytime=0.2, decaytime=0.1, amp=0.5;
+ 		var sig = In.ar(in, 2), del;
+ 		del = CombC.ar(sig, maxdelay, delaytime, decaytime, amp);
 		Out.ar(out, sig + del);
-	}
-).play(s, [ \in, ~filterb, \out, ~delayb ], \addToTail);
+ 	}
+ ).play(s, [ \in, ~filterb, \out, ~delayb ], \addToTail);
 
-~reverb = SynthDef(
-	\reverb, {
-		arg in, out, mix=0.33, room=0.5, damp=0.5, amp=0.25;
-		var input = In.ar(in, 2);
-		Out.ar(out, input + FreeVerb2.ar(input[0], input[1], mix, room, damp, amp));
-	}
-).play(s, [ \in, ~delayb, \out, 0 ], \addToTail);
+// try taking out the reverb because I think it causes noises
+
+ ~reverb = SynthDef(
+ 	\reverb, {
+ 		arg in, out, mix=0.33, room=0.5, damp=0.5, amp=0.25;
+ 		var input = In.ar(in, 2);
+ 		Out.ar(out, input + FreeVerb2.ar(input[0], input[1], mix, room, damp, amp));
+ 	}
+ ).play(s, [ \in, ~delayb, \out, 0 ], \addToTail);
 
 
 )
 
 
-
-(
-~monitor = SynthDef(
-	\monitor_synth,
-	{
-		arg in=2, out=0;
-		Out.ar(out, In.ar(in, 2))
-	}
-).play(s, [\in, ~fxb, \out, 0 ], \addToTail);
-
-)
-
-~monitor.set(\in, ~reverbb)
-
-~monitor.free
-
-~pitchb.scope()
-
-// s.sync(); // this needs to be done in a routine because it calls yield
-// sidebar -
 
 
 (
@@ -341,7 +354,7 @@ OSCdef.freeAll;
 
 ~to.slider('/mix', 0.25, TouchOSCScale(0, 1),        { |v| ~bufrecorder.set(\mix, v) } );
 ~to.slider('/gain', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
-~to.slider('/passthrough', 0.5, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) } );
+~to.slider('/passthrough', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) } );
 
 ~to.slider('/feedback',  0, TouchOSCScale(0, 0.25), { |v|
 	~bufrecorder.set(\feedback, v) } );
@@ -379,14 +392,12 @@ OSCdef.freeAll;
 ~to.slider('/grains/buffer', 0, TouchOSCScale(0, 1), {});
 
 ~to.xy('/grains/speed', [ 1, 120 ], TouchOSCScale(0, 2), TouchOSCScale(0, 640), { | v |
-	~playbacklfo.set(\speed, v[0]);
-	~trigger.set(\freq, v[1] / ~buflen);
+	~playbacklfo.set(\speed, v[0] / ~buflen);
+	~trigger.set(\freq, v[1]);
 });
 
 ~to.button('/grains/mode', 0, { |v|
 	var mode = ~modes[v];
-	"mode".postln;
-	[ v, mode ].postln;
 	if( mode.isNil.not, {
 		~granulator.set(\posb, mode[1]);
 		~playbacklfo = mode[0];
@@ -454,6 +465,9 @@ OSCdef.freeAll;
 	10000, TouchOSCScaleExp(100, 10000), { |v| ~filter.set(\freq, v) }
 );
 
+~to.slider('/fx/grainmix',  1.0, TouchOSCScale(0, 1),   { |v| ~grainmixer.set(\grains, v) } );
+
+
 ~to.slider('/fx/filtermix',  0.8, TouchOSCScale(0, 1),   { |v| ~filter.set(\amp, v) } );
 
 ~to.button('/fx/filtermoda', 1, { |v| ~filtermod.set(\a, v) });
@@ -504,6 +518,8 @@ OSCdef.freeAll;
 ~posdisplay.start;
 )
 
+~posdisplay.stop;
+
 ~pitch.set(\harmonics, 1.5);
 
 ~pitchb.scope
@@ -531,7 +547,7 @@ OSCdef.freeAll;
 2.pow(3)
 -2.49.round
 
-2.4534534.asFraction(7)
+0.4.asFraction(3)
 
 (
 ~trig2 = SynthDef(
@@ -541,4 +557,27 @@ OSCdef.freeAll;
 		Out.kr(out, Impulse.kr(freq) * (1 - dust)) + (Dust.kr(freq) * dust);
 }
 ).play(s, [ \out, ~triggerb, \freq, 120, \dust, 0 ]);
+
+
+~frippbuffer.write("/Users/mike/Music/SuperCollider Recordings/slow.aiff");
+
+(
+~monitor = SynthDef(
+	\monitor_synth,
+	{
+		arg in=2, out=0;
+		Out.ar(out, In.ar(in, 2))
+	}
+).play(s, [\in, ~fxb, \out, 0 ], \addToTail);
+
+)
+
+~monitor.set(\in, ~reverbb)
+
+~monitor.free
+
+~pitchb.scope()
+
+// s.sync(); // this needs to be done in a routine because it calls yield
+// sidebar -
 
