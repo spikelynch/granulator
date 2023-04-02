@@ -217,23 +217,32 @@ fork {
 ~makebuffers.value();
 
 
-~bufrecorder = SynthDef(
+SynthDef(
 	\fripp_record,
 	{
-		arg in = 2, fb = 4, bufindex = 0, mix = 0.25, record = 0.0, feedback = 0.0;
+		arg in = 2, buffer = 0, mix = 0.25, record = 0.0;
 		var insig = record * In.ar(in, 1);
-		RecordBuf.ar(insig, ~frippbuffers[bufindex], 0, mix, 1 - mix, loop: 1)
+		RecordBuf.ar(insig, buffer, 0, mix, 1 - mix, loop: 1)
     }
-).play(s, [
-	\in, ~recordb,
-	\record, 1.0,
-//	\fb, ~granulatorb,
-	\out, 0,
-	\bufindex, ~currentfripp,
-	\addToTail
-]
-);
+).add;
 
+~bufrecorders = Array.new(~ntracks);
+
+~frippbuffers.do({
+	| buffer, index |
+	~bufrecorders.add(Synth.new(
+		\fripp_record,
+		[
+			\in, ~recordb,
+			\record, 0.0,
+			\buffer, buffer
+		],
+		s,
+		\addToTail
+	))
+});
+
+~bufrecorder = ~bufrecorders[0];
 
 // the main granulator synth
 
@@ -347,14 +356,15 @@ OSCdef.freeAll;
 
 ~to.button('/reset', 0, { | v |
 	if( v > 0, {
-		var sp = ~to.v('/grains/speed')[0];
-		~buflen = ~to.v('/grains/buflen');
-		[ "resetting buffers to", ~buflen ].postln;
-		~makebuffers.value();
-		~granulator.set(\buffer, ~frippbuffers[~currentfripp]);
-		~bufrecorder.set(\buffer, ~frippbuffers[~currentfripp]);
-
-		~playbacklfo.set(\speed, sp / ~buflen);
+		"TODO: rewrite this for multitrack".postln;
+		// var sp = ~to.v('/grains/speed')[0];
+		// ~buflen = ~to.v('/grains/buflen');
+		// [ "resetting buffers to", ~buflen ].postln;
+		// ~makebuffers.value();
+		// ~granulator.set(\buffer, ~frippbuffers[~currentfripp]);
+		// ~bufrecorder.set(\buffer, ~frippbuffers[~currentfripp]);
+		//
+		// ~playbacklfo.set(\speed, sp / ~buflen);
 	});
 });
 
@@ -362,8 +372,10 @@ OSCdef.freeAll;
 ~to.button('/track', 0, { |v|
 	var buffer = ~frippbuffers[v];
 	if( buffer.isNil.not, {
+		~bufrecorder.set(\record, 0.0);
+		~bufrecorder = ~bufrecorders[v];
+		~bufrecorder.set(\record, ~to.v('/record'));
 		~granulator.set(\buffer, buffer);
-		~bufrecorder.set(\buffer, buffer);
 		[ "set track to", v, buffer ].postln;
 	}, {
 		[ "Bad track index", v ].postln;
