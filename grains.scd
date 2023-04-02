@@ -8,6 +8,33 @@ Server.killAll;
 ~frippbuffer.write("/Users/mike/Music/SuperCollider Recordings/slow.aiff");
 ~frippbuffer.isNil;
 
+
+(
+SynthDef(
+	\fripp_record,
+	{
+		arg in = 2, buffer = 0, mix = 0.25, record = 0.0;
+		var insig = record * In.ar(in, 1);
+		RecordBuf.ar(insig, buffer, 0, mix, 1 - mix, loop: 1)
+    }
+).add;
+
+
+SynthDef(
+	\grainsynth,
+	{
+		arg out=0, buffer, blen, pitchb, triggerb, posb, modb, size=0.1, amp=0.5, pan=0, track=0.25, jitter=0, blur=0.0;
+		var pitch, trigger, chor, pos, pans, grains, filtfreq;
+		trigger = In.kr(triggerb);
+		pitch = In.kr(pitchb);
+		pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
+		pans = pan + WhiteNoise.kr(jitter) + (track * (In.kr(posb, 1) - 1));
+		grains = TGrains.ar(2, trigger, buffer, pitch, pos * blen, size, pans, amp);
+		Out.ar(out, grains);
+	}
+).add;
+)
+
 (
 
 ~ntracks = 4;
@@ -217,15 +244,6 @@ fork {
 ~makebuffers.value();
 
 
-SynthDef(
-	\fripp_record,
-	{
-		arg in = 2, buffer = 0, mix = 0.25, record = 0.0;
-		var insig = record * In.ar(in, 1);
-		RecordBuf.ar(insig, buffer, 0, mix, 1 - mix, loop: 1)
-    }
-).add;
-
 ~bufrecorders = Array.new(~ntracks);
 
 ~frippbuffers.do({
@@ -244,32 +262,31 @@ SynthDef(
 
 ~bufrecorder = ~bufrecorders[0];
 
-// the main granulator synth
+// the granulators
 
+~granulators = Array.new(~ntracks);
+~grainmodes = Array.fill(~ntracks, 0);
 
-~granulator = SynthDef(
-	\grainsynth,
-	{
-		arg out=0, buffer, pitchb, triggerb, posb, modb, size=0.1, amp=1.0, pan=0, track=0.25, jitter=0, blur=0.0;
-		var pitch, blen, trigger, chor, pos, pans, grains, filtfreq;
-		//trigger = Impulse.kr(120);
-		trigger = In.kr(triggerb);
-		pitch = In.kr(pitchb);
-		blen = BufDur.kr(buffer);
-		pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
-		pans = pan + WhiteNoise.kr(jitter) + (track * (In.kr(posb, 1) - 1));
-		grains = TGrains.ar(2, trigger, buffer, pitch, pos * blen, size, pans, amp);
-		Out.ar(out, grains);
-	}
-).play(s, [
-	\out, ~granulatorb,
-	\buffer, ~frippbuffers[~currentfripp],
-	\posb, ~playbacklfob,
-	\triggerb, ~triggerb,
-	\pitchb, ~pitchb,
-	\modb, ~lfob,
-	\size, 0.1
-]);
+~frippbuffers.do({
+	| buffer, index |
+	[ "Grain synth: ", buffer, index ].postln;
+	~granulators.add(Synth.new(
+		\grainsynth,
+		[
+			\out, ~granulatorb,
+			\buffer, buffer,
+			\blen, ~buflen,
+			\posb, ~playbacklfob,
+			\triggerb, ~triggerb,
+			\pitchb, ~pitchb,
+			\modb, ~lfob,
+			\size, 0.1
+		],
+		s
+	))
+});
+
+~granulator = ~granulators[0];
 
 // mixing and effects
 
@@ -372,15 +389,25 @@ OSCdef.freeAll;
 ~to.button('/track', 0, { |v|
 	var buffer = ~frippbuffers[v];
 	if( buffer.isNil.not, {
+		[ "set track to", v, buffer ].postln;
 		~bufrecorder.set(\record, 0.0);
+		~bufrecorder.set(\mix, 0.0); // stop unselected track fading out
 		~bufrecorder = ~bufrecorders[v];
 		~bufrecorder.set(\record, ~to.v('/record'));
-		~granulator.set(\buffer, buffer);
-		[ "set track to", v, buffer ].postln;
+		~granulator = ~granulators[v];
+		~to.v_('/grainfx/mix', 0); // will always be 0 because we turned it off
+		~granulator.get(\amp, { | v | ~to.v_('/grainfx/gain', v) });
+		~granulator.get(\blur, { | v | ~to.v_('/grains/blur', v) });
+		~granulator.get(\size, { | v | ~to.v_('/grains/size', v) });
+		~granulator.get(\pan, { | v | ~to.v_('/grainfx/pan', v) });
+		~granulator.get(\track, { | v | ~to.v_('/grainfx/track', v) });
+		~granulator.get(\jitter, { | v | ~to.v_('/grainfx/jitter', v) });
+		// todo - set the grainmode based on what this one has
 	}, {
 		[ "Bad track index", v ].postln;
 	});
 });
+
 
 
 ~to.slider('/feedback',  0, TouchOSCScale(0, 0.25), { |v|
@@ -426,6 +453,7 @@ OSCdef.freeAll;
 ~to.button('/grains/mode', 0, { |v|
 	var mode = ~modes[v];
 	if( mode.isNil.not, {
+		[ "granulator is", ~granulator ].postln;
 		~granulator.set(\posb, mode[1]);
 		~playbacklfo = mode[0];
 		~playbacklfob = mode[1];
@@ -454,10 +482,10 @@ OSCdef.freeAll;
 
 // Page 2: grainfx
 
-~to.slider('/grainfx/mix', 0.25, TouchOSCScale(0, 1),        { |v|
+~to.slider('/grainfx/mix', 0.25, TouchOSCScale(0, 1), { |v|
 	~bufrecorder.set(\mix, v);
 });
-~to.slider('/grainfx/gain', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
+~to.slider('/grainfx/gain', 0.5, TouchOSCScale(0, 1), { |v| ~granulator.set(\amp, v) } );
 ~to.slider('/grainfx/pt', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) } );
 
 ~to.button('/grainfx/back',   0, { |v| ~pitch.set(\dir, if( v > 0, { -1 }, { 1}))});
@@ -574,3 +602,11 @@ OSCdef.freeAll;
 ~bufrecorder.set(\buffer, ~frippbuffers[1]);
 
 
+~granulators[0].get(\buffer, {|v| v.postln});
+
+(
+~frippbuffers.do({
+	|b, i|
+	b.write("/Users/mike/Music/SuperCollider Recordings/buffer" ++ i.asString ++ ".aiff");
+});
+)
