@@ -2,13 +2,32 @@
 
 (
 Server.default.options.inDevice_("Scarlett 2i2 USB");
-Server.default.options.outDevice_("Scarlett 2i2 USB");
+//Server.default.options.outDevice_("Scarlett 2i2 USB");
 )
 Server.killAll;
 ~frippbuffer.write("/Users/mike/Music/SuperCollider Recordings/slow.aiff");
-
+~frippbuffer.isNil;
 
 (
+
+~ntracks = 4;
+
+~makebuffers = {
+	if( ~frippbuffers.isNil.not, {
+		~frippbuffers.do({ |b| b.free });
+		~frippbuffers.free;
+	});
+
+	~frippbuffers = Array.new(~ntracks);
+
+	~currentfripp = 0;
+
+	(1..~ntracks).do( { |i|
+		~frippbuffers.add(Buffer.alloc(s, s.sampleRate * ~buflen, 1));
+	});
+};
+
+
 
 ~to = TouchOSC("192.168.0.209", 9000);
 
@@ -181,9 +200,8 @@ fork {
 
 ~pitch = SynthDef(
 	\pitch,
-
 	{
-		arg out, posb, triggerb, track=1, dir=1, detune=0.0, chorus=0, harmonics=2, pitch=0, quant=1;
+		arg out, posb, triggerb, track=1, dir=1, detune=0.0, chorus=0, harmonics=2, pitch=0;
 		var tracking, base, chor, det, csig, dsig;
 		csig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
 		dsig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
@@ -196,35 +214,25 @@ fork {
 ).play(s, [ \out, ~pitchb, \triggerb, ~triggerb, \posb, ~playbacklfob, \dir, 1, \track, 0]);
 
 
-// pitch gets quantised to octaves from 3 below to 3 above.
-// NOTE: the pitch TouchOSC control is -1 to 1, not 0 to 1
-// min/max gets ignored because I'm overloading the ctrlset/get
+~makebuffers.value();
 
-// TODO: fixme,
-
-// ~to.slider('/grainfx/pitch', -1, 1, 1,
-// 	{ |self| ~granulator.set("rate", self.v) },
-
-// 	{ |self, ctrlv | self.v = 2.pow((ctrlv * 3).floor) },
-// 	{ |self|         self.v.log2.floor / 3; }
-// );
-
-
-
-// buffer recorder
-
-~frippbuffer = Buffer.alloc(s, s.sampleRate * ~buflen, 1);
 
 ~bufrecorder = SynthDef(
 	\fripp_record,
 	{
-		arg in = 2, fb = 4, buffer = 0, mix = 0.25, record = 0.0, feedback = 0.0;
-		var insig, fbsig;
-		insig = record * In.ar(in, 1);
-		fbsig = feedback * Mix.ar(In.ar(fb, 2));
-		RecordBuf.ar(insig + fbsig, buffer, 0, mix, 1 - mix, loop: 1)
+		arg in = 2, fb = 4, bufindex = 0, mix = 0.25, record = 0.0, feedback = 0.0;
+		var insig = record * In.ar(in, 1);
+		RecordBuf.ar(insig, ~frippbuffers[bufindex], 0, mix, 1 - mix, loop: 1)
     }
-).play(s, [\in, ~recordb, \record, 1.0, \fb, ~granulatorb, \out, 0, \buffer, ~frippbuffer], \addToTail);
+).play(s, [
+	\in, ~recordb,
+	\record, 1.0,
+//	\fb, ~granulatorb,
+	\out, 0,
+	\bufindex, ~currentfripp,
+	\addToTail
+]
+);
 
 
 // the main granulator synth
@@ -246,7 +254,7 @@ fork {
 	}
 ).play(s, [
 	\out, ~granulatorb,
-	\buffer, ~frippbuffer,
+	\buffer, ~frippbuffers[~currentfripp],
 	\posb, ~playbacklfob,
 	\triggerb, ~triggerb,
 	\pitchb, ~pitchb,
@@ -327,7 +335,7 @@ fork {
 )
 
 
-
+// why can't this all be in the same block?
 
 (
 
@@ -341,20 +349,27 @@ OSCdef.freeAll;
 	if( v > 0, {
 		var sp = ~to.v('/grains/speed')[0];
 		~buflen = ~to.v('/grains/buflen');
-		[ "resetting buffer to", ~buflen ].postln;
-		~newbuffer = Buffer.alloc(s, s.sampleRate * ~buflen, 1);
-		~granulator.set(\buffer, ~newbuffer);
-		~bufrecorder.set(\buffer, ~newbuffer);
-		if( ~frippbuffer.isNil.not, { ~frippbuffer.free });
-		~frippbuffer = ~newbuffer;
+		[ "resetting buffers to", ~buflen ].postln;
+		~makebuffers.value();
+		~granulator.set(\buffer, ~frippbuffers[~currentfripp]);
+		~bufrecorder.set(\buffer, ~frippbuffers[~currentfripp]);
+
 		~playbacklfo.set(\speed, sp / ~buflen);
 	});
 });
 
 
-~to.slider('/mix', 0.25, TouchOSCScale(0, 1),        { |v| ~bufrecorder.set(\mix, v) } );
-~to.slider('/gain', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
-~to.slider('/passthrough', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) } );
+~to.button('/track', 0, { |v|
+	var buffer = ~frippbuffers[v];
+	if( buffer.isNil.not, {
+		~granulator.set(\buffer, buffer);
+		~bufrecorder.set(\buffer, buffer);
+		[ "set track to", v, buffer ].postln;
+	}, {
+		[ "Bad track index", v ].postln;
+	});
+});
+
 
 ~to.slider('/feedback',  0, TouchOSCScale(0, 0.25), { |v|
 	~bufrecorder.set(\feedback, v) } );
@@ -408,19 +423,17 @@ OSCdef.freeAll;
 	});
 });
 
+~to.button('/grains/speedquant',   0, { |v|
+});
+
+~to.slider('/grains/step', 4, TouchOSCScale(1, 8), { |v|
+	~grainstep.set(\steps, v.floor);
+});
+
+
+
 ~to.button('/grains/dust',   0, { |v| ~trigger.set(\dust, v) });
-~to.slider('/grains/blur',   0, TouchOSCScale(0, 1), { |v| ~granulator.set(\blur, v) });
-
-
-// todo vvv quantise speed should be swappable
-
-// var trate, qspeed;
-// qspeed = 2.pow(v[0].floor);
-// ~playbacklfo.set(\speed, qspeed / ~buflen);
-// [ "speed", v[0], qspeed, qspeed / ~buflen ].postln;
-// trate = 2.pow(v[1].floor) / ~buflen;
-// ~granulator.set(\trate, trate);
-
+~to.slider('/grains/blur',   0, TouchOSCScale(0, 0.25), { |v| ~granulator.set(\blur, v) });
 
 
 ~to.slider('/grains/size', 0.1, TouchOSCScale(0, 0.5),{
@@ -429,24 +442,26 @@ OSCdef.freeAll;
 
 // Page 2: grainfx
 
+~to.slider('/grainfx/mix', 0.25, TouchOSCScale(0, 1),        { |v|
+	~bufrecorder.set(\mix, v);
+});
+~to.slider('/grainfx/gain', 0.5, TouchOSCScale(0, 1),    { |v| ~granulator.set(\amp, v) } );
+~to.slider('/grainfx/pt', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) } );
+
 ~to.button('/grainfx/back',   0, { |v| ~pitch.set(\dir, if( v > 0, { -1 }, { 1}))});
-
 ~to.button('/grainfx/slope',   1, { |v| ~pitch.set(\track, v) });
-
-
 ~to.slider('/grainfx/pan', 0,    TouchOSCScale(-1, 1), { |v| ~granulator.set(\pan, v) });
 ~to.slider('/grainfx/track', 0.5,  TouchOSCScale(-1, 1), { |v| ~granulator.set(\track, v) });
 ~to.slider('/grainfx/jitter', 0.25, TouchOSCScale(0, 1), { |v| ~granulator.set(\jitter, v) });
 
 
 ~to.button('/grainfx/chorus', 0, { |v| ~pitch.set(\chorus, v) });
-
 ~to.slider('/grainfx/detune', 0, TouchOSCScale(0, 0.059),  { |v| ~pitch.set(\detune, v) });
-
 ~to.slider('/grainfx/pitch', 0, TouchOSCScale(-2, 2),      { |v| ~pitch.set(\pitch, v.round) });
 
 ~to.button('/grainfx/quant', 1, { |v|
-	~pitch.set(\quant, v);
+	// ~pitch.set(\quant, v);
+	// just re-call the value setter for harmonics when toggled
 	~to.v_('/grainfx/harmonics', ~to.v('/grainfx/harmonics'));
 });
 
@@ -503,6 +518,9 @@ OSCdef.freeAll;
 
 )
 
+// old, slow buffer position display - to-do- this would be better in a GUI element
+// on the laptop
+
 (
 
 ~posdisplay = Task.new({
@@ -518,48 +536,9 @@ OSCdef.freeAll;
 ~posdisplay.start;
 )
 
-~posdisplay.stop;
-
-~pitch.set(\harmonics, 1.5);
-
-~pitchb.scope
-
-~trigger.set(\dust,0);
-
-(
-~testpitchb = Bus.control(s, 1);
-
-~test = SynthDef(
-	\testpitch,
-	{
-		arg out, triggerb;
-		var csig, dsig, chor;
-		csig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
-		//dsig = Latch.kr(WhiteNoise.kr(), In.kr(triggerb));
-		chor = 2.pow((csig * 2).round);
-		Out.kr(out, chor);
-	}
-).play(s, [ \out, ~testpitchb, \triggerb, ~triggerb ]);
-)
-
-~test.free
-
-2.pow(3)
--2.49.round
-
-0.4.asFraction(3)
-
-(
-~trig2 = SynthDef(
-    \trig2,
-	{
-		arg out, freq=1, dust=0;
-		Out.kr(out, Impulse.kr(freq) * (1 - dust)) + (Dust.kr(freq) * dust);
-}
-).play(s, [ \out, ~triggerb, \freq, 120, \dust, 0 ]);
 
 
-~frippbuffer.write("/Users/mike/Music/SuperCollider Recordings/slow.aiff");
+~frippbuffers[~currentfripp].write("/Users/mike/Music/SuperCollider Recordings/test.aiff");
 
 (
 ~monitor = SynthDef(
@@ -578,6 +557,8 @@ OSCdef.freeAll;
 
 ~pitchb.scope()
 
-// s.sync(); // this needs to be done in a routine because it calls yield
-// sidebar -
+~frippbuffers.plot;
+
+~bufrecorder.set(\buffer, ~frippbuffers[1]);
+
 
