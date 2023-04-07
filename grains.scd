@@ -9,53 +9,11 @@ Server.killAll;
 ~frippbuffer.isNil;
 
 
-(
-SynthDef(
-	\fripp_record,
-	{
-		arg in = 2, buffer = 0, mix = 0.25, record = 0.0;
-		var insig = record * In.ar(in, 1);
-		RecordBuf.ar(insig, buffer, 0, mix, 1 - mix, loop: 1)
-    }
-).add;
 
-
-SynthDef(
-	\grainsynth,
-	{
-		arg out=0, buffer, blen, pitchb, triggerb, posb, modb, size=0.1, amp=0.5, pan=0, track=0.25, jitter=0, blur=0.0;
-		var pitch, trigger, chor, pos, pans, grains, filtfreq;
-		trigger = In.kr(triggerb);
-		pitch = In.kr(pitchb);
-		pos = Wrap.kr(In.kr(posb, 1) + WhiteNoise.kr(blur), 0, 1);
-		pans = pan + WhiteNoise.kr(jitter) + (track * (In.kr(posb, 1) - 1));
-		grains = TGrains.ar(2, trigger, buffer, pitch, pos * blen, size, pans, amp);
-		Out.ar(out, grains);
-	}
-).add;
-)
-
-(
-
-~ntracks = 4;
-
-~makebuffers = {
-	if( ~frippbuffers.isNil.not, {
-		~frippbuffers.do({ |b| b.free });
-		~frippbuffers.free;
-	});
-
-	~frippbuffers = Array.new(~ntracks);
-
-	~currentfripp = 0;
-
-	(1..~ntracks).do( { |i|
-		~frippbuffers.add(Buffer.alloc(s, s.sampleRate * ~buflen, 1));
-	});
-};
 
 
 
+(
 ~to = TouchOSC("192.168.0.209", 9000);
 
 ~usbinput = 2;
@@ -241,9 +199,17 @@ fork {
 ).play(s, [ \out, ~pitchb, \triggerb, ~triggerb, \posb, ~playbacklfob, \dir, 1, \track, 0]);
 
 
+)
+
+s
+Granulator.init(s)
+
+~g3 = Granulator.new(4, ~recordb, ~granulatorb, ~playbacklfob, ~triggerb, ~pitchb);
+
+~g.recorder.set(\record, 1.0);
 ~makebuffers.value();
 
-
+(
 ~bufrecorders = Array.new(~ntracks);
 
 ~frippbuffers.do({
@@ -288,6 +254,8 @@ fork {
 
 ~granulator = ~granulators[0];
 
+)
+(
 // mixing and effects
 
 ~fxb = Bus.audio(s, 2);
@@ -361,7 +329,6 @@ fork {
 )
 
 
-// why can't this all be in the same block?
 
 (
 
