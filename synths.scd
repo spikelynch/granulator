@@ -7,12 +7,7 @@
 ~buflen = 4.0;
 ~beatsperbar = 4;
 
-~posb0 = Bus.control(s, 1);
-~posb1 = Bus.control(s, 1);
-~posb2 = Bus.control(s, 1);
-~posb3 = Bus.control(s, 1);
-
-SynthDef(\pos_sin, {
+SynthDef(\pos_sine, {
 	arg out, speed=1;
 	Out.kr(out, 0.5 + SinOsc.kr(speed * 0.5, 0, 0.5));
 }).add;
@@ -33,7 +28,7 @@ SynthDef(\pos_step, {
 	Out.kr(out, stepwise / steps);
 }).add;
 
-SynthDef(\pos_rand, {
+SynthDef(\pos_random, {
 	arg out=5, speed=1;
 	Out.kr(out, 0.5 + WhiteNoise.kr(0.5));
 }).add;
