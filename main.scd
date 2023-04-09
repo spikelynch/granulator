@@ -48,10 +48,10 @@ Granulator.init(s);
 	arg track, mode;
 	var synth = ~modes[mode][1];
 	~possynths[track].get(\speed, { | speed |
-
 		~possynths[track].free;
 		~possynths[track] = Synth(synth, [\out, ~posb[track], \speed, speed]);
 	});
+	~granulators[track].mode_(mode);
 }
 )
 

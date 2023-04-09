@@ -1,7 +1,12 @@
 
+v = 1.0;
+
+v.asInt
 
 (
 ~to = TouchOSC("192.168.0.209", 9000);
+
+~speeds = [ 1, 1, 1, 1 ];
 
 
 OSCdef.freeAll;
@@ -20,29 +25,23 @@ OSCdef.freeAll;
 	});
 });
 
-	// ~to.button('/trackselect', 0, { |v|
-	// 	var buffer = ~frippbuffers[v];
-	// 	if( buffer.isNil.not, {
-	// 		[ "set track to", v, buffer ].postln;
-	// 		~bufrecorder.set(\record, 0.0);
-	// 		~bufrecorder.set(\mix, 0.0); // stop unselected track fading out
-	// 		~bufrecorder = ~bufrecorders[v];
-	// 		~bufrecorder.set(\record, ~to.v('/record'));
-	// 		~granulator = ~granulators[v];
-	// 		~to.v_('/grainfx/mix', 0); // will always be 0 because we turned it off
-	// 		// ~granulator.get(\amp, { | v | ~to.v_('/grainfx/gain', v) });
-	// 		// ~granulator.get(\blur, { | v | ~to.v_('/grains/blur', v) });
-	// 		// ~granulator.get(\size, { | v | ~to.v_('/grains/size', v) });
-	// 		// ~granulator.get(\pan, { | v | ~to.v_('/grainfx/pan', v) });
-	// 		// ~granulator.get(\track, { | v | ~to.v_('/grainfx/track', v) });
-	// 		// ~granulator.get(\jitter, { | v | ~to.v_('/grainfx/jitter', v) });
-	// 		// todo - set the grainmode based on what this one has
-	// 		}, {
-	// 			[ "Bad track index", v ].postln;
-	// 	});
-	// });
 
+// when selecting a track, sets all the controls on the track page to this one
 
+~to.button('/trackselect', 0, { |v|
+	~tracknum = v.asInteger;
+	~granulator = ~granulators[~tracknum];
+	~to.v_('/track/record', ~granulator.record);
+	~to.v_('/track/mode',   ~granulator.mode);
+	~to.v_('/track/speed',  ~speeds[~tracknum]);
+
+	~to.v_('/track/blur',   ~granulator.blur);
+	~to.v_('/track/size',   ~granulator.size);
+	~to.v_('/track/mix',    ~granulator.mix);
+	~to.v_('/track/pan',    ~granulator.pan);
+	~to.v_('/track/track',  ~granulator.track);
+	~to.v_('/track/jitter',  ~granulator.jitter);
+});
 
 
 // note: ~buflen is the variable for buffer length, which only gets set to
@@ -51,25 +50,28 @@ OSCdef.freeAll;
 ~to.slider('/grains/buflen', ~buflen, TouchOSCScale(0.1, 10.0), {});
 
 
-~to.button('/grains/record0', 0, { | v | ~granulators[0].record(v) });
-~to.button('/grains/record1', 0, { | v | ~granulators[1].record(v) });
-~to.button('/grains/record2', 0, { | v | ~granulators[2].record(v) });
-~to.button('/grains/record3', 0, { | v | ~granulators[3].record(v) });
+~to.button('/grains/record0', 0, { | v | ~granulators[0].record_(v) });
+~to.button('/grains/record1', 0, { | v | ~granulators[1].record_(v) });
+~to.button('/grains/record2', 0, { | v | ~granulators[2].record_(v) });
+~to.button('/grains/record3', 0, { | v | ~granulators[3].record_(v) });
 
 ~to.button('/grains/mode0', 0, { |v| ~setmode.value(0, v) });
 ~to.button('/grains/mode1', 0, { |v| ~setmode.value(1, v) });
 ~to.button('/grains/mode2', 0, { |v| ~setmode.value(2, v) });
 ~to.button('/grains/mode3', 0, { |v| ~setmode.value(3, v) });
 
-~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v| ~possynths[0].set(\speed, v) });
-~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v| ~possynths[1].set(\speed, v) });
-~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v| ~possynths[2].set(\speed, v) });
-~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v| ~possynths[3].set(\speed, v) });
+~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v| ~speeds[0] = v; ~possynths[0].set(\speed, v) });
+~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v| ~speeds[1] = v; ~possynths[1].set(\speed, v)
+});
+~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v| ~speeds[2] = v; ~possynths[2].set(\speed, v) });
+~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v| ~speeds[3] = v; ~possynths[3].set(\speed, v) });
 
-~to.slider('/grains/mix0',   0.5, TouchOSCScale(0, 1), { | v | ~granulators[0].gain(v) });
-~to.slider('/grains/mix1',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[1].gain(v) });
-~to.slider('/grains/mix2',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[2].gain(v) });
-~to.slider('/grains/mix3',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[3].gain(v) });
+~to.slider('/grains/passthrough', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) });
+
+~to.slider('/grains/mix0',   0.5, TouchOSCScale(0, 1), { | v | ~granulators[0].gain_(v) });
+~to.slider('/grains/mix1',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[1].gain_(v) });
+~to.slider('/grains/mix2',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[2].gain_(v) });
+~to.slider('/grains/mix3',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[3].gain_(v) });
 
 ~to.button('/grains/speedquant',   0, { |v| });
 
@@ -79,38 +81,31 @@ OSCdef.freeAll;
 ~to.button('/grains/back',   0,  { |v| ~pitch.set(\dir, if( v > 0, { -1 }, { 1}))});
 ~to.button('/grains/slope',   1, { |v| ~pitch.set(\track, v) });
 
+~to.button('/grains/chorus', 0, { |v| ~pitch.set(\chorus, v) });
+~to.slider('/grains/detune', 0, TouchOSCScale(0, 0.059),  { |v| ~pitch.set(\detune, v) });
+~to.slider('/grains/pitch', 0, TouchOSCScale(-2, 2),      { |v| ~pitch.set(\pitch, v.round) });
+
+
 // Page 2: track
 
-// ~to.slider('/track/mix', 0.25, TouchOSCScale(0, 1), { |v| ~granulator.mix_(v);
-// });
+// these just set the value on the first page
 
-	// ~to.slider('/grainfx/pan', 0,    TouchOSCScale(-1, 1), { |v| ~granulator.pan_(v) });
-	// ~to.slider('/grainfx/track', 0.5,  TouchOSCScale(-1, 1), { |v| ~granulator.track_(v) });
-	// ~to.slider('/grainfx/jitter', 0.25, TouchOSCScale(0, 1), { |v| ~granulator.jitter_(v) });
-	//
-	//
-	// ~to.slider('/grains/blur',   0, TouchOSCScale(0, 0.25), { |v| ~granulator.blur_(v) });
-	// ~to.slider('/grains/size', 0.1, TouchOSCScale(0, 0.5),{ |v| ~granulator.size_(v) });
-	//
-	//
-	// ~to.button('/grainfx/chorus', 0, { |v| ~pitch.set(\chorus, v) });
-	// ~to.slider('/grainfx/detune', 0, TouchOSCScale(0, 0.059),  { |v| ~pitch.set(\detune, v) });
-	// ~to.slider('/grainfx/pitch', 0, TouchOSCScale(-2, 2),      { |v| ~pitch.set(\pitch, v.round) });
-	//
-	// ~to.button('/grainfx/quant', 1, { |v|
-	// 	// ~pitch.set(\quant, v);
-	// 	// just re-call the value setter for harmonics when toggled
-	// 	~to.v_('/grainfx/harmonics', ~to.v('/grainfx/harmonics'));
-	// });
-	//
-	// ~to.slider('/grainfx/harmonics', 2, TouchOSCScale(0.1, 4),  { |v|
-	// 	if(~to.v('/grainfx/quant') > 0, {
-	// 		~pitch.set(\harmonics, v.round);
-	// 		},
-	// 		{
-	// 			~pitch.set(\harmonics, v);
-	// 	});
-	// });
+~to.button('/track/record',  0, { | v | ~to.v_('grains/record' ++ ~tracknum, v) });
+~to.button('/track/mode',    0, { | v | ~to.v_('grains/mode' ++ ~tracknum, v) });
+~to.slider('/track/speed',   1, TouchOSCScale(0, 2), { |v| ~to.v_('grains/speed' ++ ~tracknum, v) });
+
+// these set the values on the actual granulator
+
+~to.slider('/track/blur',   0, TouchOSCScale(0, 0.25),    { |v| ~granulator.blur_(v) });
+~to.slider('/track/size', 0.1, TouchOSCScale(0, 0.5),     { |v| ~granulator.size_(v) });
+
+~to.slider('/track/mix',    0.25, TouchOSCScale(0, 1),    { |v| ~granulator.mix_(v); });
+~to.slider('/track/pan',      0,    TouchOSCScale(-1, 1), { |v| ~granulator.pan_(v) });
+~to.slider('/track/track',   0.5,  TouchOSCScale(-1, 1),  { |v| ~granulator.track_(v) });
+~to.slider('/track/jitter', 0.25, TouchOSCScale(0, 1),    { |v| ~granulator.jitter_(v) });
+
+
+
 
 ~to.slider(
 	'/fx/filterfreq',
