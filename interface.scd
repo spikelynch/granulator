@@ -1,3 +1,5 @@
+
+
 (
 ~to = TouchOSC("192.168.0.209", 9000);
 
@@ -10,8 +12,11 @@ OSCdef.freeAll;
 	if( v > 0, {
 		var sp = ~to.v('/grains/speed')[0];
 		~buflen = ~to.v('/grains/buflen');
-		~granulators.do({|g, i| g.reset(~buflen) });
-		~playbacklfo.set(\speed, sp / ~buflen);
+		(0..3).do({|i|
+			var speed = ~to.v('/grains/speed' ++ i);
+			~granulators[i].reset(~buflen);
+			~possynths[i].set(\speed, speed / ~buflen);
+		});
 	});
 });
 
@@ -55,23 +60,17 @@ OSCdef.freeAll;
 ~to.button('/grains/mode1', 0, { |v| ~setmode.value(1, v) });
 ~to.button('/grains/mode2', 0, { |v| ~setmode.value(2, v) });
 ~to.button('/grains/mode3', 0, { |v| ~setmode.value(3, v) });
-)
 
-(
 ~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v| ~possynths[0].set(\speed, v) });
 ~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v| ~possynths[1].set(\speed, v) });
 ~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v| ~possynths[2].set(\speed, v) });
 ~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v| ~possynths[3].set(\speed, v) });
-)
 
-(
 ~to.slider('/grains/mix0',   0.5, TouchOSCScale(0, 1), { | v | ~granulators[0].gain(v) });
 ~to.slider('/grains/mix1',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[1].gain(v) });
 ~to.slider('/grains/mix2',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[2].gain(v) });
 ~to.slider('/grains/mix3',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[3].gain(v) });
-)
 
-(
 ~to.button('/grains/speedquant',   0, { |v| });
 
 ~to.slider('/grains/trigger', 120, TouchOSCScale(0, 640), { |v| ~trigger.set(\freq, v) });
@@ -79,7 +78,7 @@ OSCdef.freeAll;
 ~to.button('/grains/dust',   0,  { |v| ~trigger.set(\dust, v) });
 ~to.button('/grains/back',   0,  { |v| ~pitch.set(\dir, if( v > 0, { -1 }, { 1}))});
 ~to.button('/grains/slope',   1, { |v| ~pitch.set(\track, v) });
-)
+
 // Page 2: track
 
 // ~to.slider('/track/mix', 0.25, TouchOSCScale(0, 1), { |v| ~granulator.mix_(v);
@@ -113,11 +112,11 @@ OSCdef.freeAll;
 	// 	});
 	// });
 
-(
 ~to.slider(
 	'/fx/filterfreq',
 	10000, TouchOSCScaleExp(100, 10000), { |v| ~filter.set(\freq, v) }
 );
+
 
 ~to.slider('/fx/grainmix',  1.0, TouchOSCScale(0, 1),   { |v| ~grainmixer.set(\grains, v) } );
 
