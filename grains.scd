@@ -9,122 +9,70 @@ Server.killAll;
 ~frippbuffer.isNil;
 
 
-
-
-
-
 (
 ~to = TouchOSC("192.168.0.209", 9000);
 
 ~usbinput = 2;
-
 ~usbinput1 = 2;
-
 ~usbinput2 = 3;
-
 
 ~buflen = 4.0;
 ~beatsperbar = 4;
 
-// trying setting the playback LFOs before the controls
+~posb0 = Bus.control(s, 1);
+~posb1 = Bus.control(s, 1);
+~posb2 = Bus.control(s, 1);
+~posb3 = Bus.control(s, 1);
 
-// granulator playback modes
-// each of these is a control bus with a synth that drives the pattern
-// the granulator mode control switches between them
+SynthDef(\pos_sin, {
+	arg out, speed=1;
+	Out.kr(out, 0.5 + SinOsc.kr(speed * 0.5, 0, 0.5));
+}).add;
 
-// more ideas for modules: scramble - do a permutation of ABCDEFGH slots
+SynthDef(\pos_saw, {
+	arg out, speed=1;
+	Out.kr(out, 0.5 + LFSaw.kr(speed, 0, 0.5));
+}).add;
 
-// todo - encapsulate these in a class
+SynthDef(\pos_reverse, {
+	arg out, speed=1;
+	Out.kr(out, 0.5 - LFSaw.kr(speed, 0, 0.5));
+}).add;
 
+SynthDef(\pos_step, {
+	arg out, speed=1, steps=8;
+	var stepwise = LFSaw.kr(speed, 0.0, 0.5 * steps, 0.5 * steps).floor;
+	Out.kr(out, stepwise / steps);
+}).add;
 
-~grainsinb = Bus.control(s, 1);
+SynthDef(\pos_rand, {
+	arg out=5, speed=1;
+	Out.kr(out, 0.5 + WhiteNoise.kr(0.5));
+}).add;
 
-~grainsin = SynthDef(
-	\grainsin,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 + SinOsc.kr(speed * 0.5, 0, 0.5));
-	}
-).play(s, [\out, ~grainsinb, \speed, 1]);
+SynthDef( \lfo, {
+	arg out, freq=1, amp=0;
+	Out.kr(out, SinOsc.kr(freq, 0, amp));
+}).add;
 
-~grainsawb = Bus.control(s, 1);
-
-~grainsaw = SynthDef(
-	\grainsaw,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 + LFSaw.kr(speed, 0, 0.5));
-	}
-).play(s, [\out, ~grainsawb, \speed, 1]);
-
-~grainreverseb = Bus.control(s, 1);
-
-~grainreverse = SynthDef(
-	\grainreverse,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 - LFSaw.kr(speed, 0, 0.5));
-	}
-).play(s, [\out, ~grainreverseb, \speed, 1]);
-
-~graintrib = Bus.control(s, 1);
-
-~graintri = SynthDef(
-	\graintri,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 + LFTri.kr(speed, 0, 0.5));
-	}
-).play(s, [\out, ~graintrib, \speed, 1]);
-
-
-~grainstepb = Bus.control(s, 1);
-
-~grainstep = SynthDef(
-	\grainstep,
-	{
-		arg out=5, speed=1, steps=8;
-		var stepwise = LFSaw.kr(speed, 0.0, 0.5 * steps, 0.5 * steps).floor;
-		Out.kr(out, stepwise / steps);
-	}
-).play(s, [\out, ~grainstepb, \speed, 1]);
-
-
-~grainrandb = Bus.control(s, 1);
-
-~grainrand = SynthDef(
-	\grainrand,
-	{
-		arg out=5, speed=1;
-		Out.kr(out, 0.5 + WhiteNoise.kr(0.5));
-	}
-).play(s, [\out, ~grainrandb, \speed, 1]);
-
+)
 
 ~modes = [
-	[ ~grainsaw, ~grainsawb, "saw" ],
-	[ ~grainreverse, ~grainreverseb, "reverse", ],
-	[ ~grainsin, ~grainsinb, "sine" ],
-	[ ~grainstep, ~grainstepb, "step" ],
-	[ ~grainrand, ~grainrandb, "random" ]
+	[ "saw", \pos_saw ],
+	[ "reverse", \pos_reverse ],
+	[ "sine", \pos_sine ],
+	[ "step", \pos_step ],
+	[ "random", \pos_rand ]
 ];
 
-~playbacklfo = ~modes[0][0];
-~playbacklfob = ~modes[0][1];
-// audio buses
+
+(
+// audio buses and other control stuff
 
 // recordb = input to bufrecorder
 
 
 ~recordb = Bus.audio(s, 1);
-
-// ~infilter = SynthDef(
-// 	\input_null,
-// 	{
-// 		arg in = 2, out = 4;
-// 		Out.ar(out, In.ar(in));
-// 	}
-// ).play(s, [\in, ~usbinput, \out, ~recordb]);
 
 ~inmixer = SynthDef(
 	\input_null,
@@ -134,7 +82,6 @@ Server.killAll;
 	}
 ).play(s, [\in1, ~usbinput1, \in2, ~usbinput2, \out, ~recordb]);
 
-
 ~granulatorb = Bus.audio(s, 2);
 
 // LFO buses and synths
@@ -143,26 +90,9 @@ Server.killAll;
 ~lfobb = Bus.control(s, 1);
 ~lfocb = Bus.control(s, 1);
 
-
-fork {
-	SynthDef(
-		\lfo,
-		{
-			arg out=5, freq=1, amp=0;
-			Out.kr(out, SinOsc.kr(freq, 0, amp));
-		}
-	).add;
-
-	1.wait;
-
-	~lfoa = Synth(\lfo, [\out, ~lfoab ]);
-	~lfob = Synth(\lfo, [\out, ~lfobb ]);
-	~lfoc = Synth(\lfo, [\out, ~lfocb ]);
-	"LFOs initialised".postln;
-};
-
-
-
+~lfoa = Synth(\lfo, [\out, ~lfoab ]);
+~lfob = Synth(\lfo, [\out, ~lfobb ]);
+~lfoc = Synth(\lfo, [\out, ~lfocb ]);
 
 // a kr synth which triggers grains
 
@@ -201,7 +131,6 @@ fork {
 
 )
 
-s
 Granulator.init(s)
 
 ~g3 = Granulator.new(4, ~recordb, ~granulatorb, ~playbacklfob, ~triggerb, ~pitchb);
@@ -255,78 +184,6 @@ Granulator.init(s)
 ~granulator = ~granulators[0];
 
 )
-(
-// mixing and effects
-
-~fxb = Bus.audio(s, 2);
-~filterb = Bus.audio(s, 2);
-~grainsb = Bus.audio(s, 2);
-~delayb = Bus.audio(s, 2);
-~reverbb = Bus.audio(s, 2);
-
-~grainmixer = SynthDef(
-	\grain_mixer,
-	{
-		arg in=2, gbus=4, out=0, passthrough=0.75, grains=0.75;
-		Out.ar(out, (grains * In.ar(gbus, 2)) + (passthrough * In.ar(~recordb, 1) ! 2));
-	}
-).play(s, [\in, ~usbinput, \gbus, ~granulatorb, \out, ~fxb ], \addToTail);
-
-
-
-~filtermodb = Bus.control(s, 1);
-
-~filtermod = SynthDef(
-	\filtermod, {
-		arg out, a = 1.0, b = 0.0, c = 0.0;
-		var siga, sigb, sigc;
-		siga = In.kr(~lfoab) * a;
-		sigb = In.kr(~lfobb) * b;
-		sigc = In.kr(~lfocb) * c;
-		Out.kr(out, Wrap.kr(siga + sigb + sigc, -1, 1));
-	}
-).play(s, [\out, ~filtermodb, \a, 1, \b, 0, \c, 0 ]);
-
-
-~filter = SynthDef(
-	\filter, {
-		arg in, out, mod, freq=10000, res=0.3, amp=1.0;
-		var filt, lfo;
-		lfo = LinExp.kr(In.kr(mod, 1), -1, 1, freq * 0.5, freq * 2);
-		filt = RLPF.ar(In.ar(in, 2) * amp, lfo, res);
-		Out.ar(out, filt);
-	}
-).play(s, [ \in, ~fxb, \out, ~filterb, \mod, ~filtermodb, \amp, 0.5 ], \addToTail);
-
-
-
-
-
-
-// delay always passes through 100% of its input + amp % of the delay
-
-
-~delay = SynthDef(
- 	\delay, {
- 		arg in, out, maxdelay=1, delaytime=0.2, decaytime=0.1, amp=0.5;
- 		var sig = In.ar(in, 2), del;
- 		del = CombC.ar(sig, maxdelay, delaytime, decaytime, amp);
-		Out.ar(out, sig + del);
- 	}
- ).play(s, [ \in, ~filterb, \out, ~delayb ], \addToTail);
-
-// try taking out the reverb because I think it causes noises
-
- ~reverb = SynthDef(
- 	\reverb, {
- 		arg in, out, mix=0.33, room=0.5, damp=0.5, amp=0.25;
- 		var input = In.ar(in, 2);
- 		Out.ar(out, input + FreeVerb2.ar(input[0], input[1], mix, room, damp, amp));
- 	}
- ).play(s, [ \in, ~delayb, \out, 0 ], \addToTail);
-
-
-)
 
 
 
@@ -340,15 +197,10 @@ OSCdef.freeAll;
 
 ~to.button('/reset', 0, { | v |
 	if( v > 0, {
-		"TODO: rewrite this for multitrack".postln;
-		// var sp = ~to.v('/grains/speed')[0];
-		// ~buflen = ~to.v('/grains/buflen');
-		// [ "resetting buffers to", ~buflen ].postln;
-		// ~makebuffers.value();
-		// ~granulator.set(\buffer, ~frippbuffers[~currentfripp]);
-		// ~bufrecorder.set(\buffer, ~frippbuffers[~currentfripp]);
-		//
-		// ~playbacklfo.set(\speed, sp / ~buflen);
+		var sp = ~to.v('/grains/speed')[0];
+		~buflen = ~to.v('/grains/buflen');
+		~granulators.do({|g, i| g.reset(~buflen) }
+		~playbacklfo.set(\speed, sp / ~buflen);
 	});
 });
 
@@ -363,12 +215,12 @@ OSCdef.freeAll;
 		~bufrecorder.set(\record, ~to.v('/record'));
 		~granulator = ~granulators[v];
 		~to.v_('/grainfx/mix', 0); // will always be 0 because we turned it off
-		~granulator.get(\amp, { | v | ~to.v_('/grainfx/gain', v) });
-		~granulator.get(\blur, { | v | ~to.v_('/grains/blur', v) });
-		~granulator.get(\size, { | v | ~to.v_('/grains/size', v) });
-		~granulator.get(\pan, { | v | ~to.v_('/grainfx/pan', v) });
-		~granulator.get(\track, { | v | ~to.v_('/grainfx/track', v) });
-		~granulator.get(\jitter, { | v | ~to.v_('/grainfx/jitter', v) });
+		// ~granulator.get(\amp, { | v | ~to.v_('/grainfx/gain', v) });
+		// ~granulator.get(\blur, { | v | ~to.v_('/grains/blur', v) });
+		// ~granulator.get(\size, { | v | ~to.v_('/grains/size', v) });
+		// ~granulator.get(\pan, { | v | ~to.v_('/grainfx/pan', v) });
+		// ~granulator.get(\track, { | v | ~to.v_('/grainfx/track', v) });
+		// ~granulator.get(\jitter, { | v | ~to.v_('/grainfx/jitter', v) });
 		// todo - set the grainmode based on what this one has
 	}, {
 		[ "Bad track index", v ].postln;
@@ -421,7 +273,7 @@ OSCdef.freeAll;
 	var mode = ~modes[v];
 	if( mode.isNil.not, {
 		[ "granulator is", ~granulator ].postln;
-		~granulator.set(\posb, mode[1]);
+		~granulator.posb_(mode[1]);
 		~playbacklfo = mode[0];
 		~playbacklfob = mode[1];
 		~playbacklfo.set(\speed, ~to.v('/grains/speed')[0] / ~buflen);
@@ -440,26 +292,21 @@ OSCdef.freeAll;
 
 
 ~to.button('/grains/dust',   0, { |v| ~trigger.set(\dust, v) });
-~to.slider('/grains/blur',   0, TouchOSCScale(0, 0.25), { |v| ~granulator.set(\blur, v) });
-
-
-~to.slider('/grains/size', 0.1, TouchOSCScale(0, 0.5),{
-	|v| ~granulator.set(\size, v)
-});
+~to.slider('/grains/blur',   0, TouchOSCScale(0, 0.25), { |v| ~granulator.blur_(v) });
+~to.slider('/grains/size', 0.1, TouchOSCScale(0, 0.5),{ |v| ~granulator.size_(v) });
 
 // Page 2: grainfx
 
-~to.slider('/grainfx/mix', 0.25, TouchOSCScale(0, 1), { |v|
-	~bufrecorder.set(\mix, v);
+~to.slider('/grainfx/mix', 0.25, TouchOSCScale(0, 1), { |v| ~granulator.mix_(v);
 });
-~to.slider('/grainfx/gain', 0.5, TouchOSCScale(0, 1), { |v| ~granulator.set(\amp, v) } );
+~to.slider('/grainfx/gain', 0.5, TouchOSCScale(0, 1), { |v| ~granulator.gain_(v) } );
 ~to.slider('/grainfx/pt', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) } );
 
 ~to.button('/grainfx/back',   0, { |v| ~pitch.set(\dir, if( v > 0, { -1 }, { 1}))});
 ~to.button('/grainfx/slope',   1, { |v| ~pitch.set(\track, v) });
-~to.slider('/grainfx/pan', 0,    TouchOSCScale(-1, 1), { |v| ~granulator.set(\pan, v) });
-~to.slider('/grainfx/track', 0.5,  TouchOSCScale(-1, 1), { |v| ~granulator.set(\track, v) });
-~to.slider('/grainfx/jitter', 0.25, TouchOSCScale(0, 1), { |v| ~granulator.set(\jitter, v) });
+~to.slider('/grainfx/pan', 0,    TouchOSCScale(-1, 1), { |v| ~granulator.pan_(v) });
+~to.slider('/grainfx/track', 0.5,  TouchOSCScale(-1, 1), { |v| ~granulator.track_(v) });
+~to.slider('/grainfx/jitter', 0.25, TouchOSCScale(0, 1), { |v| ~granulator.jitter_(v) });
 
 
 ~to.button('/grainfx/chorus', 0, { |v| ~pitch.set(\chorus, v) });
