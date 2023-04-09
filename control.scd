@@ -15,7 +15,7 @@
 	}
 ).play(s, [\in1, ~usbinput1, \in2, ~usbinput2, \out, ~recordb]);
 
-~granulatorb = Bus.audio(s, 2);
+~grb = Bus.audio(s, 2);
 
 // LFO buses and synths
 

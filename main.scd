@@ -5,13 +5,20 @@ Server.default.options.inDevice_("Scarlett 2i2 USB");
 //Server.default.options.outDevice_("Scarlett 2i2 USB");
 )
 Server.killAll;
-~frippbuffer.write("/Users/mike/Music/SuperCollider Recordings/slow.aiff");
-~frippbuffer.isNil;
 
 
 ("./synths.scd").loadRelative;
 ("./control.scd").loadRelative;
 ("./effects.scd").loadRelative;
+
+Granulator.init(s);
+
+
+
+
+
+(
+// set up four position buffers with synths
 
 ~modes = [
 	[ "saw", \pos_saw ],
@@ -21,9 +28,34 @@ Server.killAll;
 	[ "random", \pos_rand ]
 ];
 
+~granulators = Array.new(4);
+~posb = Array.new(4);
+~possynth = Array.new(4);
+
+(0..3).do({
+	var pb = Bus.control(s, 1), ps;
+	~posb.add(pb);
+	ps = Synth(\pos_saw, [ \out, pb ]);
+	~possynth.add(ps);
+});
+
+)
+
+(
+
+(0..3).do({ |i|
+	var pb = ~posb.at(i);
+	~granulators.add(Granulator.new(~buflen, ~recordb, ~outb, pb, ~triggerb, ~pitchb));
+});
+
+)
+
+~granulators[1].record(1.0);
+~possynth[0].set(\speed,200);
+
+("./interface.scd").loadRelative;
 
 
-Granulator.init(s)
 
 ~g3 = Granulator.new(4, ~recordb, ~granulatorb, ~playbacklfob, ~triggerb, ~pitchb);
 
@@ -82,35 +114,3 @@ Granulator.init(s)
 
 
 
-~frippbuffers[~currentfripp].write("/Users/mike/Music/SuperCollider Recordings/test.aiff");
-
-(
-~monitor = SynthDef(
-	\monitor_synth,
-	{
-		arg in=2, out=0;
-		Out.ar(out, In.ar(in, 2))
-	}
-).play(s, [\in, ~fxb, \out, 0 ], \addToTail);
-
-)
-
-~monitor.set(\in, ~reverbb)
-
-~monitor.free
-
-~pitchb.scope()
-
-~frippbuffers.plot;
-
-~bufrecorder.set(\buffer, ~frippbuffers[1]);
-
-
-~granulators[0].get(\buffer, {|v| v.postln});
-
-(
-~frippbuffers.do({
-	|b, i|
-	b.write("/Users/mike/Music/SuperCollider Recordings/buffer" ++ i.asString ++ ".aiff");
-});
-)

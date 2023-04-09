@@ -17,7 +17,7 @@
 		arg in=2, gbus=4, out=0, passthrough=0.75, grains=0.75;
 		Out.ar(out, (grains * In.ar(gbus, 2)) + (passthrough * In.ar(~recordb, 1) ! 2));
 	}
-).play(s, [\in, ~usbinput, \gbus, ~granulatorb, \out, ~fxb ], \addToTail);
+).play(s, [\in, ~usbinput, \gbus, ~grb, \out, ~fxb ], \addToTail);
 
 ~filtermodb = Bus.control(s, 1);
 
