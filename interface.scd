@@ -1,8 +1,4 @@
 
-v = 1.0;
-
-v.asInt
-
 (
 ~to = TouchOSC("192.168.0.209", 9000);
 
@@ -33,6 +29,7 @@ OSCdef.freeAll;
 	~granulator = ~granulators[~tracknum];
 	~to.v_('/track/record', ~granulator.record);
 	~to.v_('/track/mode',   ~granulator.mode);
+	~to.v_('/track/trigger',~granulator.trigger);
 	~to.v_('/track/speed',  ~speeds[~tracknum]);
 
 	~to.v_('/track/blur',   ~granulator.blur);
@@ -61,16 +58,31 @@ OSCdef.freeAll;
 ~to.button('/grains/record2', 0, { | v | ~granulators[2].record_(v) });
 ~to.button('/grains/record3', 0, { | v | ~granulators[3].record_(v) });
 
-~to.button('/grains/mode0', 0, { |v| ~setmode.value(0, v) });
-~to.button('/grains/mode1', 0, { |v| ~setmode.value(1, v) });
-~to.button('/grains/mode2', 0, { |v| ~setmode.value(2, v) });
-~to.button('/grains/mode3', 0, { |v| ~setmode.value(3, v) });
+~to.button('/grains/mode0', 0, { |v| ~granulators[0].mode_(v); ~setmode.value(0, v) });
+~to.button('/grains/mode1', 0, { |v| ~granulators[1].mode_(v); ~setmode.value(1, v) });
+~to.button('/grains/mode2', 0, { |v| ~granulators[2].mode_(v); ~setmode.value(2, v) });
+~to.button('/grains/mode3', 0, { |v| ~granulators[3].mode_(v); ~setmode.value(3, v) });
 
-~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v| ~speeds[0] = v; ~possynths[0].set(\speed, v) });
-~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v| ~speeds[1] = v; ~possynths[1].set(\speed, v)
+~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v|
+	~speeds[0] = v;
+	~possynths[0].set(\speed, v / ~buflen);
+	~speeds.postln;
 });
-~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v| ~speeds[2] = v; ~possynths[2].set(\speed, v) });
-~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v| ~speeds[3] = v; ~possynths[3].set(\speed, v) });
+~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v|
+	~speeds[1] = v;
+	~possynths[1].set(\speed, v / ~buflen);
+	~speeds.postln;
+});
+~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v|
+	~speeds[2] = v;
+	~possynths[2].set(\speed, v / ~buflen);
+	~speeds.postln;
+});
+~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v|
+	~speeds[3] = v;
+	~possynths[3].set(\speed, v / ~buflen);
+	~speeds.postln;
+});
 
 ~to.slider('/grains/passthrough', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) });
 

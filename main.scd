@@ -41,9 +41,6 @@ Granulator.init(s);
 	~granulators.add(Granulator.new(~buflen, ~recordb, ~outb, pb, ~triggerb, ~pitchb));
 });
 
-)
-
-(
 ~setmode = {
 	arg track, mode;
 	var synth = ~modes[mode][1];
@@ -54,8 +51,6 @@ Granulator.init(s);
 	~granulators[track].mode_(mode);
 }
 )
-
-~granulators[0].gain(1);
 
 ("./interface.scd").loadRelative;
 
