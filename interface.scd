@@ -40,7 +40,13 @@ OSCdef.freeAll;
 	~to.v_('/track/mix',    ~granulator.mix);
 	~to.v_('/track/pan',    ~granulator.pan);
 	~to.v_('/track/track',  ~granulator.track);
-	~to.v_('/track/jitter',  ~granulator.jitter);
+	~to.v_('/track/jitter', ~granulator.jitter);
+	~to.v_('/track/dust',   ~granulator.dust);
+	~to.v_('/track/slope',  ~granulator.slope);
+	~to.v_('/track/back',   ~granulator.back);
+	~to.v_('/track/chorus', ~granulator.chorus);
+	~to.v_('/track/detune', ~granulator.detune);
+	~to.v_('/track/pitch',  ~granulator.pitch);
 });
 
 
@@ -75,29 +81,29 @@ OSCdef.freeAll;
 
 ~to.button('/grains/speedquant',   0, { |v| });
 
-~to.slider('/grains/trigger', 120, TouchOSCScale(0, 640), { |v| ~trigger.set(\freq, v) });
-
-~to.button('/grains/dust',   0,  { |v| ~trigger.set(\dust, v) });
-~to.button('/grains/back',   0,  { |v| ~pitch.set(\dir, if( v > 0, { -1 }, { 1}))});
-~to.button('/grains/slope',   1, { |v| ~pitch.set(\track, v) });
-
-~to.button('/grains/chorus', 0, { |v| ~pitch.set(\chorus, v) });
-~to.slider('/grains/detune', 0, TouchOSCScale(0, 0.059),  { |v| ~pitch.set(\detune, v) });
-~to.slider('/grains/pitch', 0, TouchOSCScale(-2, 2),      { |v| ~pitch.set(\pitch, v.round) });
-
-
 // Page 2: track
 
-// these just set the value on the first page
+// record, mode and speed have controls on both pages - the controls for them here just
+// call the v_ setter on the front page controls
 
 ~to.button('/track/record',  0, { | v | ~to.v_('grains/record' ++ ~tracknum, v) });
 ~to.button('/track/mode',    0, { | v | ~to.v_('grains/mode' ++ ~tracknum, v) });
 ~to.slider('/track/speed',   1, TouchOSCScale(0, 2), { |v| ~to.v_('grains/speed' ++ ~tracknum, v) });
 
-// these set the values on the actual granulator
+// the rest of this page's controls set the values on the current granulator
 
 ~to.slider('/track/blur',   0, TouchOSCScale(0, 0.25),    { |v| ~granulator.blur_(v) });
 ~to.slider('/track/size', 0.1, TouchOSCScale(0, 0.5),     { |v| ~granulator.size_(v) });
+
+~to.slider('/track/trigger', 120, TouchOSCScale(0, 640), { |v| ~granulator.trigger_(v) });
+
+~to.button('/track/dust',   0,                           { |v| ~granulator.dust_(v) });
+~to.button('/track/back',   0,                           { |v| ~granulator.back_(v)});
+~to.button('/track/slope',   1,                          { |v| ~granulator.slope_(v) });
+
+~to.button('/track/chorus', 0,                            { |v| ~granulator.chorus_(v) });
+~to.slider('/track/detune', 0, TouchOSCScale(0, 0.059),   { |v| ~granulator.detune_(v) });
+~to.slider('/track/pitch', 0, TouchOSCScale(-2, 2),       { |v| ~granulator.pitch_(v.round) });
 
 ~to.slider('/track/mix',    0.25, TouchOSCScale(0, 1),    { |v| ~granulator.mix_(v); });
 ~to.slider('/track/pan',      0,    TouchOSCScale(-1, 1), { |v| ~granulator.pan_(v) });
