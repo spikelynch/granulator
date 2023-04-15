@@ -1,9 +1,12 @@
 
+
 (
 ~to = TouchOSC("192.168.0.209", 9000);
 
 ~speeds = [ 1, 1, 1, 1 ];
 
+~tracknum = 0;
+~granulator = ~granulators[0];
 
 OSCdef.freeAll;
 
@@ -21,30 +24,9 @@ OSCdef.freeAll;
 	});
 });
 
-
-// when selecting a track, sets all the controls on the track page to this one
-
-~to.button('/trackselect', 0, { |v|
-	~tracknum = v.asInteger;
-	~granulator = ~granulators[~tracknum];
-	~to.v_('/track/record', ~granulator.record);
-	~to.v_('/track/mode',   ~granulator.mode);
-	~to.v_('/track/trigger',~granulator.trigger);
-	~to.v_('/track/speed',  ~speeds[~tracknum]);
-
-	~to.v_('/track/blur',   ~granulator.blur);
-	~to.v_('/track/size',   ~granulator.size);
-	~to.v_('/track/mix',    ~granulator.mix);
-	~to.v_('/track/pan',    ~granulator.pan);
-	~to.v_('/track/track',  ~granulator.track);
-	~to.v_('/track/jitter', ~granulator.jitter);
-	~to.v_('/track/dust',   ~granulator.dust);
-	~to.v_('/track/slope',  ~granulator.slope);
-	~to.v_('/track/back',   ~granulator.back);
-	~to.v_('/track/chorus', ~granulator.chorus);
-	~to.v_('/track/detune', ~granulator.detune);
-	~to.v_('/track/pitch',  ~granulator.pitch);
-});
+// Problem - when you press the record, mode or speed control on the grains page,
+// it doesn't update the track until you change tracks. How to make this work
+// without a loop (one control sets another control, which sets the first control...)?
 
 
 // note: ~buflen is the variable for buffer length, which only gets set to
@@ -66,22 +48,18 @@ OSCdef.freeAll;
 ~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v|
 	~speeds[0] = v;
 	~possynths[0].set(\speed, v / ~buflen);
-	~speeds.postln;
 });
 ~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v|
 	~speeds[1] = v;
 	~possynths[1].set(\speed, v / ~buflen);
-	~speeds.postln;
 });
 ~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v|
 	~speeds[2] = v;
 	~possynths[2].set(\speed, v / ~buflen);
-	~speeds.postln;
 });
 ~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v|
 	~speeds[3] = v;
 	~possynths[3].set(\speed, v / ~buflen);
-	~speeds.postln;
 });
 
 ~to.slider('/grains/passthrough', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) });
@@ -98,9 +76,16 @@ OSCdef.freeAll;
 // record, mode and speed have controls on both pages - the controls for them here just
 // call the v_ setter on the front page controls
 
-~to.button('/track/record',  0, { | v | ~to.v_('grains/record' ++ ~tracknum, v) });
-~to.button('/track/mode',    0, { | v | ~to.v_('grains/mode' ++ ~tracknum, v) });
-~to.slider('/track/speed',   1, TouchOSCScale(0, 2), { |v| ~to.v_('grains/speed' ++ ~tracknum, v) });
+~trackctrl = { | base, n | ("/grains/" ++ base ++ n).asSymbol };
+
+
+~to.button('/track/record',  0, { | v |
+	~to.v_(~trackctrl.value("record", ~tracknum), v)
+});
+~to.button('/track/mode',    0, { | v |
+	~to.v_(~trackctrl.value("mode", ~tracknum), v) });
+~to.slider('/track/speed',   1, TouchOSCScale(0, 2), { |v|
+	~to.v_(~trackctrl.value("speed", ~tracknum), v) });
 
 // the rest of this page's controls set the values on the current granulator
 
@@ -121,6 +106,32 @@ OSCdef.freeAll;
 ~to.slider('/track/pan',      0,    TouchOSCScale(-1, 1), { |v| ~granulator.pan_(v) });
 ~to.slider('/track/track',   0.5,  TouchOSCScale(-1, 1),  { |v| ~granulator.track_(v) });
 ~to.slider('/track/jitter', 0.25, TouchOSCScale(0, 1),    { |v| ~granulator.jitter_(v) });
+
+
+// define track selector after the track controls are defined
+
+~to.button('/trackselect', 0, { |v|
+	~tracknum = v.asInteger;
+	~granulator = ~granulators[~tracknum];
+	[ "granulator", ~granulator, "record", ~granulator.record ].postln;
+	~to.v_('/track/record', ~granulator.record);
+	~to.v_('/track/mode',   ~granulator.mode);
+	~to.v_('/track/trigger',~granulator.trigger);
+	~to.v_('/track/speed',  ~speeds[~tracknum]);
+
+	~to.v_('/track/blur',   ~granulator.blur);
+	~to.v_('/track/size',   ~granulator.size);
+	~to.v_('/track/mix',    ~granulator.mix);
+	~to.v_('/track/pan',    ~granulator.pan);
+	~to.v_('/track/track',  ~granulator.track);
+	~to.v_('/track/jitter', ~granulator.jitter);
+	~to.v_('/track/dust',   ~granulator.dust);
+	~to.v_('/track/slope',  ~granulator.slope);
+	~to.v_('/track/back',   ~granulator.back);
+	~to.v_('/track/chorus', ~granulator.chorus);
+	~to.v_('/track/detune', ~granulator.detune);
+	~to.v_('/track/pitch',  ~granulator.pitch);
+});
 
 
 

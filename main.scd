@@ -14,7 +14,6 @@ Server.killAll;
 Granulator.init(s);
 
 (
-// set up four position buffers with synths
 
 ~modes = [
 	[ "saw", \pos_saw ],
@@ -52,12 +51,19 @@ Granulator.init(s);
 }
 )
 
+
 ("./interface.scd").loadRelative;
 
+~to.controls.keys.do({|k, i| i.postln; k.postln;~to.controls[k].postln});
+~to.controls['/grains/speed0']
+~to.v_(, 0);
 
+~to.controls.at(~trackctrl.value('speed')).isNil.not
 
+a = "string"
+b = 'string'
 
-
+a.asSymbol
 
 
 
