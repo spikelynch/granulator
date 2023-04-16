@@ -30,14 +30,14 @@ Granulator.init(s);
 (0..3).do({
 	var pb = Bus.control(s, 1), ps;
 	~posb.add(pb);
-	ps = Synth(\pos_saw, [ \out, pb ]);
+	ps = Synth(\pos_saw, [ \out, pb, \speed, 1 / ~buflen ]);
 	~possynths.add(ps);
 });
 
 
 (0..3).do({ |i|
 	var pb = ~posb.at(i);
-	~granulators.add(Granulator.new(~buflen, ~recordb, ~outb, pb, ~triggerb, ~pitchb));
+	~granulators.add(Granulator.new(~buflen, ~recordb, ~fxb, pb, ~triggerb, ~pitchb));
 });
 
 ~setmode = {
@@ -55,7 +55,7 @@ Granulator.init(s);
 ("./interface.scd").loadRelative;
 
 ~to.controls.keys.do({|k, i| i.postln; k.postln;~to.controls[k].postln});
-~to.controls['/grains/speed0']
+~to.controls['/track/speed'].send_(0.1);
 ~to.v_(, 0);
 
 ~to.controls.at(~trackctrl.value('speed')).isNil.not
@@ -67,4 +67,5 @@ a.asSymbol
 
 
 
-
+~possynths[0].get(\speed, {|v| v.postln});
+~possynths[0].set(\speed, 20 / ~buflen)

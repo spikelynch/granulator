@@ -1,15 +1,14 @@
 
+// FIXME: the touchosc stuff is crashing on intialisation
 
 (
 ~to = TouchOSC("192.168.0.209", 9000);
 
-~speeds = [ 1, 1, 1, 1 ];
 
 ~tracknum = 0;
 ~granulator = ~granulators[0];
 
 OSCdef.freeAll;
-
 
 
 ~to.button('/reset', 0, { | v |
@@ -24,16 +23,11 @@ OSCdef.freeAll;
 	});
 });
 
-// Problem - when you press the record, mode or speed control on the grains page,
-// it doesn't update the track until you change tracks. How to make this work
-// without a loop (one control sets another control, which sets the first control...)?
-
 
 // note: ~buflen is the variable for buffer length, which only gets set to
 // ~to.v('/grains/buflen') when the buffer is reset with the clear button
 
 ~to.slider('/grains/buflen', ~buflen, TouchOSCScale(0.1, 10.0), {});
-
 
 ~to.button('/grains/record0', 0, { | v | ~granulators[0].record_(v) });
 ~to.button('/grains/record1', 0, { | v | ~granulators[1].record_(v) });
@@ -45,22 +39,10 @@ OSCdef.freeAll;
 ~to.button('/grains/mode2', 0, { |v| ~granulators[2].mode_(v); ~setmode.value(2, v) });
 ~to.button('/grains/mode3', 0, { |v| ~granulators[3].mode_(v); ~setmode.value(3, v) });
 
-~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v|
-	~speeds[0] = v;
-	~possynths[0].set(\speed, v / ~buflen);
-});
-~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v|
-	~speeds[1] = v;
-	~possynths[1].set(\speed, v / ~buflen);
-});
-~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v|
-	~speeds[2] = v;
-	~possynths[2].set(\speed, v / ~buflen);
-});
-~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v|
-	~speeds[3] = v;
-	~possynths[3].set(\speed, v / ~buflen);
-});
+~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v| ~possynths[0].set(\speed, v / ~buflen); });
+~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v| ~possynths[1].set(\speed, v / ~buflen); });
+~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v| ~possynths[2].set(\speed, v / ~buflen); });
+~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v| ~possynths[3].set(\speed, v / ~buflen); });
 
 ~to.slider('/grains/passthrough', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) });
 
@@ -71,28 +53,16 @@ OSCdef.freeAll;
 
 ~to.button('/grains/speedquant',   0, { |v| });
 
+
 // Page 2: track
 
-// record, mode and speed have controls on both pages - the controls for them here just
-// call the v_ setter on the front page controls
 
-~trackctrl = { | base, n | ("/grains/" ++ base ++ n).asSymbol };
-
-
-~to.button('/track/record',  0, { | v |
-	~to.v_(~trackctrl.value("record", ~tracknum), v)
+~to.xy('/track/triggersize', [ 120, 0.1 ], TouchOSCScale(0, 640), TouchOSCScale(0, 0.5), { |v|
+	~granulator.trigger_(v[0]);
+	~granulator.size_(v[1]);
 });
-~to.button('/track/mode',    0, { | v |
-	~to.v_(~trackctrl.value("mode", ~tracknum), v) });
-~to.slider('/track/speed',   1, TouchOSCScale(0, 2), { |v|
-	~to.v_(~trackctrl.value("speed", ~tracknum), v) });
-
-// the rest of this page's controls set the values on the current granulator
 
 ~to.slider('/track/blur',   0, TouchOSCScale(0, 0.25),    { |v| ~granulator.blur_(v) });
-~to.slider('/track/size', 0.1, TouchOSCScale(0, 0.5),     { |v| ~granulator.size_(v) });
-
-~to.slider('/track/trigger', 120, TouchOSCScale(0, 640), { |v| ~granulator.trigger_(v) });
 
 ~to.button('/track/dust',   0,                           { |v| ~granulator.dust_(v) });
 ~to.button('/track/back',   0,                           { |v| ~granulator.back_(v)});
@@ -108,30 +78,24 @@ OSCdef.freeAll;
 ~to.slider('/track/jitter', 0.25, TouchOSCScale(0, 1),    { |v| ~granulator.jitter_(v) });
 
 
-// define track selector after the track controls are defined
 
 ~to.button('/trackselect', 0, { |v|
-	~tracknum = v.asInteger;
-	~granulator = ~granulators[~tracknum];
-	[ "granulator", ~granulator, "record", ~granulator.record ].postln;
-	~to.v_('/track/record', ~granulator.record);
-	~to.v_('/track/mode',   ~granulator.mode);
-	~to.v_('/track/trigger',~granulator.trigger);
-	~to.v_('/track/speed',  ~speeds[~tracknum]);
+ 	~tracknum = v.asInteger;
+ 	~granulator = ~granulators[~tracknum];
 
-	~to.v_('/track/blur',   ~granulator.blur);
-	~to.v_('/track/size',   ~granulator.size);
+	~to.v_('/track/triggersize', [~granulator.trigger, ~granulator.size]);
+ 	~to.v_('/track/blur',   ~granulator.blur);
 	~to.v_('/track/mix',    ~granulator.mix);
-	~to.v_('/track/pan',    ~granulator.pan);
-	~to.v_('/track/track',  ~granulator.track);
-	~to.v_('/track/jitter', ~granulator.jitter);
-	~to.v_('/track/dust',   ~granulator.dust);
-	~to.v_('/track/slope',  ~granulator.slope);
-	~to.v_('/track/back',   ~granulator.back);
-	~to.v_('/track/chorus', ~granulator.chorus);
-	~to.v_('/track/detune', ~granulator.detune);
-	~to.v_('/track/pitch',  ~granulator.pitch);
-});
+ 	~to.v_('/track/pan',    ~granulator.pan);
+ 	~to.v_('/track/track',  ~granulator.track);
+ 	~to.v_('/track/jitter', ~granulator.jitter);
+ 	~to.v_('/track/dust',   ~granulator.dust);
+ 	~to.v_('/track/slope',  ~granulator.slope);
+ 	~to.v_('/track/back',   ~granulator.back);
+ 	~to.v_('/track/chorus', ~granulator.chorus);
+ 	~to.v_('/track/detune', ~granulator.detune);
+ 	~to.v_('/track/pitch',  ~granulator.pitch);
+ });
 
 
 
@@ -143,10 +107,7 @@ OSCdef.freeAll;
 
 
 ~to.slider('/fx/grainmix',  1.0, TouchOSCScale(0, 1),   { |v| ~grainmixer.set(\grains, v) } );
-
-
 ~to.slider('/fx/filtermix',  0.8, TouchOSCScale(0, 1),   { |v| ~filter.set(\amp, v) } );
-
 ~to.button('/fx/filtermoda', 1, { |v| ~filtermod.set(\a, v) });
 ~to.button('/fx/filtermodb', 0, { |v| ~filtermod.set(\b, v) });
 ~to.button('/fx/filtermodc', 0, { |v| ~filtermod.set(\c, v) });
