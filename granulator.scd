@@ -8,6 +8,8 @@
 	[ "random", \pos_random ]
 ];
 
+~grainsb = Bus.audio(s, 2);
+
 ~granulators = Array.new(4);
 ~posb = Array.new(4);
 ~possynths = Array.new(4);
@@ -22,7 +24,7 @@
 
 (0..3).do({ |i|
 	var pb = ~posb.at(i);
-	~granulators.add(Granulator.new(~buflen, ~recordb, ~fxb, pb, ~triggerb, ~pitchb));
+	~granulators.add(Granulator.new(~buflen, ~infxb, ~grainsb, pb, ~triggerb, ~pitchb));
 });
 
 ~setmode = {
@@ -38,3 +40,4 @@
 "Granulator running".postln;
 
 )
+

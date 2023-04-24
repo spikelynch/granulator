@@ -12,16 +12,16 @@ Routine.run({
 
 	("./synths.scd").loadRelative;
 	Granulator.init(s);
-
 	s.sync;
-
-	"Synths loaded".postln;
-
 	("./control.scd").loadRelative;
-	("./effects.scd").loadRelative;
+	s.sync;
 	("./granulator.scd").loadRelative;
+	s.sync;
+	("./effects.scd").loadRelative;
 	s.sync;
 	("./interface.scd").loadRelative;
 });
 )
+
+
 
