@@ -1,31 +1,53 @@
 # TODO
 
-## Granulator
+- quantise playback speed to rational values
+- display the playback and harmonics when quantised
 
-Fix chorus and detune - why isn't it being triggered?
+- multiple grain buffers - TouchOsc interface to select which to send to
+- play back all buffers?
 
-Add pitch shifting
+- refactor for multitrack
+  - which controls are per-track and which are global? sort these out in the UI
+  - encapsulate a grainstrack in an object?
 
-Change harmonics for chorus
+- auto-mix: base the mix level on how loud the incoming signal is so that tracks don't fade out
 
-Lock harmonics to octaves / ratios
-
-## Effects chain
-
-Add an effects chain like with midilooper
-
--> filter -> reverb -> out
-
+- fancier playback:
+  - intertwine different rates and directions
 
 
-## LFO mod
+- rhythm controls
+  - number of steps in step granulator
+  - modulate grain level in time with playback
+  - sync LFOs to playback
 
-Add the new-style lfo mods to filter
+TODO list - touchosch
 
-## More LFO mods
+URL                  TO       SC
+grains/buflen        Y        Y
+grains/reset         Y        Y
+grains/record0..3    Y        Y
+grains/mode0..3      Y        Y
+grains/speed0..3     Y        Y
+grains/dust          Y        Y
+grains/slope         Y        Y
+grains/back          Y        Y
+grains/trigger       Y        Y
+grains/speedlock
+grains/speedquant
+grains/mix0          Y
+grains/mix1          Y
+grains/mix2          Y
+grains/mix3          Y
 
-Allow other settings to be modulated
+trackselect
 
-## Input filter
-
-Switch in and out a single input filter like distort, peak FFT, etc,
+track/record
+track/mode
+track/speed
+track/size
+track/blur
+track/mix
+track/pan
+track/track
+track/jitter
