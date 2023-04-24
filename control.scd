@@ -27,5 +27,6 @@
 ~lfob = Synth(\lfo, [\out, ~lfobb ]);
 ~lfoc = Synth(\lfo, [\out, ~lfocb ]);
 
+"LFOs running".postln;
 
 )

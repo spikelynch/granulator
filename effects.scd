@@ -70,4 +70,5 @@
  	}
  ).play(s, [ \in, ~delayb, \out, 0 ], \addToTail);
 
+"Effects running".postln;
 )
