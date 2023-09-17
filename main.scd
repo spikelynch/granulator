@@ -3,7 +3,8 @@
 (
 Server.default.options.inDevice_("Scarlett 2i2 USB");
 Server.default.options.hardwareBufferSize_(1024);
-//Server.default.options.outDevice_("Scarlett 2i2 USB");
+Server.default.options.outDevice_("Scarlett 2i2 USB");
+//Server.default.options.outDevice_("External Headphones");
 )
 Server.killAll;
 
@@ -22,6 +23,18 @@ Routine.run({
 	("./interface.scd").loadRelative;
 });
 )
+
+
+
+
+
+
+("./synths.scd").loadRelative;
+Granulator.init(s);
+("./control.scd").loadRelative;
+("./granulator.scd").loadRelative;
+("./effects.scd").loadRelative;
+("./interface.scd").loadRelative;
 
 
 
