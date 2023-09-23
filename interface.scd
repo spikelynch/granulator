@@ -27,13 +27,15 @@ OSCdef.freeAll;
 	});
 });
 
-~quantspeed = { |v| 2.pow((v * 4).round - 5) };
+~quantspeed = { |v| 2.pow((v * 4 + 0.5).round - 5) };
 
 // control ganging is hella laggy, do it in TouchOSC
+
 
 ~setspeed = { | track, v |
 	var speed, qv = if(~speedquant > 0, { ~quantspeed.value(v) }, { v });
 	speed = qv / ~buflen;
+	[ "setspeed", v, qv, speed ].postln;
 	if(~speedlock > 0, {
 		(0..3).do({|n|
 			~possynths[n].set(\speed, speed);
