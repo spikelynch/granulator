@@ -1,4 +1,5 @@
 
+
 (
 ~modes = [
 	[ "saw", \pos_saw ],
@@ -7,6 +8,9 @@
 	[ "step", \pos_step ],
 	[ "random", \pos_random ]
 ];
+
+~outputDir = Platform.recordingsDir +/+ "GrainBuffers";
+
 
 ~grainsb = Bus.audio(s, 2);
 
@@ -31,7 +35,6 @@
 	~granulators.add(Granulator.new(~buflen, ~infxb, ~grainsb, pb, rtb));
 });
 
-"Granulators running".postln;
 
 // launch the pos synths and triggers to sync the buffer recorders
 
@@ -55,6 +58,10 @@
 	~granulators[track].mode_(mode);
 };
 
-
+~dumpbuffers = { |prefix|
+	(0..3).do({|i|
+		var filename = ~outputDir +/+ prefix ++ 'buffer' ++ i.asString ++ '.aiff';
+		~granulators[i].buffer.write(filename);
+	});
+}
 )
-
