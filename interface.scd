@@ -123,7 +123,7 @@ OSCdef.freeAll;
 
 ~to.button('/track/dust',   0,                           { |v| ~granulator.dust_(v) });
 ~to.button('/track/back',   0,                           { |v| ~granulator.back_(v)});
-~to.button('/track/slope',   1,                          { |v| ~granulator.slope_(v) });
+~to.button('/track/slope',   0,                          { |v| ~granulator.slope_(v) });
 
 ~to.button('/track/chorus', 0,                            { |v| ~granulator.chorus_(v) });
 ~to.slider('/track/detune', 0, TouchOSCScale(0, 0.059),   { |v| ~granulator.detune_(v) });
