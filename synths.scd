@@ -14,12 +14,12 @@ SynthDef(\pos_sine, {
 
 SynthDef(\pos_saw, {
 	arg out, speed=1;
-	Out.kr(out, 0.5 + LFSaw.kr(speed, 0, 0.5));
+	Out.kr(out, 0.5 + LFSaw.kr(speed, 0, 0.5, 0.5));
 }).add;
 
 SynthDef(\pos_reverse, {
 	arg out, speed=1;
-	Out.kr(out, 0.5 - LFSaw.kr(speed, 0, 0.5));
+	Out.kr(out, 0.5 - LFSaw.kr(speed, 0, 0.5, 0.5));
 }).add;
 
 SynthDef(\pos_step, {
@@ -33,9 +33,15 @@ SynthDef(\pos_random, {
 	Out.kr(out, 0.5 + WhiteNoise.kr(0.5));
 }).add;
 
-SynthDef( \lfo, {
+SynthDef(\lfo, {
 	arg out, freq=1, amp=0;
 	Out.kr(out, SinOsc.kr(freq, 0, amp));
 }).add;
+
+SynthDef(\trigger, {
+	arg out=1;
+	Out.kr(out, Impulse.kr(0))
+}).add;
+
 
 )

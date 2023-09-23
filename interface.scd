@@ -1,5 +1,4 @@
 
-// FIXME: the touchosc stuff is crashing on intialisation
 
 (
 ~to = TouchOSC("192.168.0.209", 9000);
@@ -8,10 +7,13 @@
 ~tracknum = 0;
 ~granulator = ~granulators[0];
 
+~speedlock = 0;
+~speedquant = 0;
+
 OSCdef.freeAll;
 
 
-~to.button('/reset', 0, { | v |
+~to.button('/grains/reset', 0, { | v |
 	if( v > 0, {
 		var sp = ~to.v('/grains/speed')[0];
 		~buflen = ~to.v('/grains/buflen');
@@ -23,26 +25,77 @@ OSCdef.freeAll;
 	});
 });
 
+~quantspeed = { |v| 2.pow((v * 4 + 0.5).round - 5) };
+
+// control ganging is hella laggy, do it in TouchOSC
+
+
+~setspeed = { | track, v |
+	var speed, qv = if(~speedquant > 0, { ~quantspeed.value(v) }, { v });
+	speed = qv / ~buflen;
+	[ "setspeed", v, qv, speed ].postln;
+	if(~speedlock > 0, {
+		(0..3).do({|n|
+			~possynths[n].set(\speed, speed);
+			if( n != track, {
+				var url = ("/grains/speed" ++ n).asSymbol;
+				~to.s_(url, v);
+			});
+		});
+	},
+	{ ~possynths[track].set(\speed, speed) });
+};
+
+// setrecord: toggles record on (1) or off (0) for a track, and also sets the
+// track's input mix to 0 so that it doesn't start fadeing out. If the track
+// is the currently selected track, set its touchosc control to 0.
+// keeps the level for each track in an array and resets it
+
+~mixlevel = Array.new(4);
+
+(0..3).do({~mixlevel.add(0.25)});
+
+
+~setrecord = { | track, v |
+	~granulators[track].record_(v);
+	[ v, track, ~tracknum ].postln;
+	if(v == 0, {
+		~mixlevel[track] = ~granulators[track].mix;
+		~granulators[track].mix_(0);
+	},
+	{
+		~granulators[track].mix_(~mixlevel[track]);
+	});
+	if( track == ~tracknum, { ~to.v_('/track/mix', ~granulators[track].mix); })
+};
+
+
 
 // note: ~buflen is the variable for buffer length, which only gets set to
 // ~to.v('/grains/buflen') when the buffer is reset with the clear button
 
 ~to.slider('/grains/buflen', ~buflen, TouchOSCScale(0.1, 10.0), {});
 
-~to.button('/grains/record0', 0, { | v | ~granulators[0].record_(v) });
-~to.button('/grains/record1', 0, { | v | ~granulators[1].record_(v) });
-~to.button('/grains/record2', 0, { | v | ~granulators[2].record_(v) });
-~to.button('/grains/record3', 0, { | v | ~granulators[3].record_(v) });
+
+
+
+~to.button('/grains/record0', 0, { | v | ~setrecord.value(0, v) });
+~to.button('/grains/record1', 0, { | v | ~setrecord.value(1, v) });
+~to.button('/grains/record2', 0, { | v | ~setrecord.value(2, v) });
+~to.button('/grains/record3', 0, { | v | ~setrecord.value(3, v) });
+
+
 
 ~to.button('/grains/mode0', 0, { |v| ~granulators[0].mode_(v); ~setmode.value(0, v) });
 ~to.button('/grains/mode1', 0, { |v| ~granulators[1].mode_(v); ~setmode.value(1, v) });
 ~to.button('/grains/mode2', 0, { |v| ~granulators[2].mode_(v); ~setmode.value(2, v) });
 ~to.button('/grains/mode3', 0, { |v| ~granulators[3].mode_(v); ~setmode.value(3, v) });
 
-~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v| ~possynths[0].set(\speed, v / ~buflen); });
-~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v| ~possynths[1].set(\speed, v / ~buflen); });
-~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v| ~possynths[2].set(\speed, v / ~buflen); });
-~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v| ~possynths[3].set(\speed, v / ~buflen); });
+~to.slider('/grains/speed0', 1, TouchOSCScale(0, 2), { |v| ~setspeed.value(0, v) });
+~to.slider('/grains/speed1', 1, TouchOSCScale(0, 2), { |v| ~setspeed.value(1, v) });
+~to.slider('/grains/speed2', 1, TouchOSCScale(0, 2), { |v| ~setspeed.value(2, v) });
+~to.slider('/grains/speed3', 1, TouchOSCScale(0, 2), { |v| ~setspeed.value(3, v) });
+
 
 ~to.slider('/grains/passthrough', 0.75, TouchOSCScale(0, 1), { |v| ~grainmixer.set(\passthrough, v) });
 
@@ -51,13 +104,15 @@ OSCdef.freeAll;
 ~to.slider('/grains/mix2',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[2].gain_(v) });
 ~to.slider('/grains/mix3',   0.5, TouchOSCScale(0, 1),{ | v | ~granulators[3].gain_(v) });
 
-~to.button('/grains/speedquant',   0, { |v| });
+~to.button('/grains/lock',   0, { |v| ~speedlock = v });
+
+~to.button('/grains/quant',   0, { |v| ~speedquant = v });
 
 
 // Page 2: track
 
 
-~to.xy('/track/triggersize', [ 120, 0.1 ], TouchOSCScale(0, 640), TouchOSCScale(0, 0.5), { |v|
+~to.xy('/track/triggersize', [ 320, 0.25 ], TouchOSCScale(0, 640), TouchOSCScale(0, 0.5), { |v|
 	~granulator.trigger_(v[0]);
 	~granulator.size_(v[1]);
 });
@@ -66,7 +121,7 @@ OSCdef.freeAll;
 
 ~to.button('/track/dust',   0,                           { |v| ~granulator.dust_(v) });
 ~to.button('/track/back',   0,                           { |v| ~granulator.back_(v)});
-~to.button('/track/slope',   1,                          { |v| ~granulator.slope_(v) });
+~to.button('/track/slope',   0,                          { |v| ~granulator.slope_(v) });
 
 ~to.button('/track/chorus', 0,                            { |v| ~granulator.chorus_(v) });
 ~to.slider('/track/detune', 0, TouchOSCScale(0, 0.059),   { |v| ~granulator.detune_(v) });
