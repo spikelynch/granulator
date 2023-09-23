@@ -51,14 +51,24 @@ OSCdef.freeAll;
 // setrecord: toggles record on (1) or off (0) for a track, and also sets the
 // track's input mix to 0 so that it doesn't start fadeing out. If the track
 // is the currently selected track, set its touchosc control to 0.
+// keeps the level for each track in an array and resets it
+
+~mixlevel = Array.new(4);
+
+(0..3).do({~mixlevel.add(0.25)});
+
 
 ~setrecord = { | track, v |
 	~granulators[track].record_(v);
 	[ v, track, ~tracknum ].postln;
 	if(v == 0, {
+		~mixlevel[track] = ~granulators[track].mix;
 		~granulators[track].mix_(0);
-		if( track == ~tracknum, { ~to.v_('/track/mix', 0); });
+	},
+	{
+		~granulators[track].mix_(~mixlevel[track]);
 	});
+	if( track == ~tracknum, { ~to.v_('/track/mix', ~granulators[track].mix); })
 };
 
 
