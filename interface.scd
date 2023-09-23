@@ -1,7 +1,5 @@
 
 
-~quantspeed.value(2);
-
 (
 ~to = TouchOSC("192.168.0.209", 9000);
 
