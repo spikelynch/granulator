@@ -27,14 +27,3 @@ Routine.run({
 
 
 
-
-
-("./synths.scd").loadRelative;
-Granulator.init(s);
-("./control.scd").loadRelative;
-("./granulator.scd").loadRelative;
-("./effects.scd").loadRelative;
-("./interface.scd").loadRelative;
-
-
-
