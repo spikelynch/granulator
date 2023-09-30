@@ -20,6 +20,7 @@ Routine.run({
 	s.sync;
 	("./effects.scd").loadRelative;
 	s.sync;
+	~touchosc_ip = "192.168.0.209";
 	("./interface.scd").loadRelative;
 });
 )

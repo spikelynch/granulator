@@ -1,7 +1,7 @@
 
 
 (
-~to = TouchOSC("192.168.0.209", 9000);
+~to = TouchOSC(~touchosc_ip, 9000);
 
 
 ~tracknum = 0;
@@ -74,10 +74,6 @@ OSCdef.freeAll;
 
 
 
-~to.button('/grains/record0', 0, { | v | ~setrecord.value(0, v) });
-~to.button('/grains/record1', 0, { | v | ~setrecord.value(1, v) });
-~to.button('/grains/record2', 0, { | v | ~setrecord.value(2, v) });
-~to.button('/grains/record3', 0, { | v | ~setrecord.value(3, v) });
 
 
 
@@ -146,6 +142,13 @@ OSCdef.freeAll;
  	~to.v_('/track/detune', ~granulator.detune);
  	~to.v_('/track/pitch',  ~granulator.pitch);
  });
+
+// set up the record buttons on the front page now because /track/mix has been defined
+
+~to.button('/grains/record0', 0, { | v | ~setrecord.value(0, v) });
+~to.button('/grains/record1', 0, { | v | ~setrecord.value(1, v) });
+~to.button('/grains/record2', 0, { | v | ~setrecord.value(2, v) });
+~to.button('/grains/record3', 0, { | v | ~setrecord.value(3, v) });
 
 
 
