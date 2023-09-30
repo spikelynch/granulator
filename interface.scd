@@ -72,11 +72,6 @@ OSCdef.freeAll;
 ~to.slider('/grains/buflen', ~buflen, TouchOSCScale(0.1, 10.0), {});
 
 
-
-
-
-
-
 ~to.button('/grains/mode0', 0, { |v| ~granulators[0].mode_(v); ~setmode.value(0, v) });
 ~to.button('/grains/mode1', 0, { |v| ~granulators[1].mode_(v); ~setmode.value(1, v) });
 ~to.button('/grains/mode2', 0, { |v| ~granulators[2].mode_(v); ~setmode.value(2, v) });
@@ -103,7 +98,7 @@ OSCdef.freeAll;
 // Page 2: track
 
 
-~to.xy('/track/triggersize', [ 100, 0.125 ], TouchOSCScale(0, 200), TouchOSCScale(0, 0.25), { |v|
+~to.xy('/track/triggersize', [ 100, 0.125 ], TouchOSCScale(0, 400), TouchOSCScale(0, 1.5), { |v|
 	~granulator.trigger_(v[0]);
 	~granulator.size_(v[1]);
 });
@@ -190,6 +185,52 @@ OSCdef.freeAll;
 
 ~to.slider('/lfos/cfreq',  0.5,TouchOSCScale(0.1, 200),   { |v| ~lfoc.set(\freq, v) } );
 ~to.slider('/lfos/camp',  0,   TouchOSCScale(0, 1),       { |v| ~lfoc.set(\amp, v) });
+
+// metronome code here is a bit gross but easier
+
+~beatsperbar = 4;
+~bps = ~beatsperbar / ~buflen;
+~tc = TempoClock.new(~bps);
+
+SynthDef(\metronome, {
+	arg out=0, amp=1, pan=0, filter=1000, atk=0.01, rel=0.1;
+	var sig, env;
+	env = EnvGen.kr(Env.perc(atk, rel, amp), doneAction: Done.freeSelf);
+	sig = HPF.ar(WhiteNoise.ar(), filter);
+	Out.ar(out, Pan2.ar(sig * env, pan));
+}
+).add;
+
+~metrob = Bus.audio(s, 2);
+
+~metromix = SynthDef(\metromix, {
+	arg in=1, out=0, amp=1;
+	Out.ar(out, amp * In.ar(in, 2));
+}).play(s, [\in, ~metrob, \out, 0, \amp, 0]);
+
+
+
+
+~metronome = Pbind(
+	\instrument, \metronome,
+	\dur, 1,
+	\amp, 0.5,
+	\pan, 0,
+	\out, ~metrob
+).play(~tc);
+
+
+~to.button('/grains/metronome', 0, { |v|
+	// reset tempo when turning metronome on
+	if( v == 1, {
+		~bps = ~beatsperbar / ~buflen;
+		~tc.tempo_(~bps);
+	});
+	// FIXME
+	~metromix.set(\amp, v)
+
+});
+
 
 
 )

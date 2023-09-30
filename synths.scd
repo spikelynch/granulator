@@ -43,5 +43,4 @@ SynthDef(\trigger, {
 	Out.kr(out, Impulse.kr(0))
 }).add;
 
-
 )
