@@ -15,12 +15,9 @@ OSCdef.freeAll;
 
 ~to.button('/grains/reset', 0, { | v |
 	if( v > 0, {
-		var sp = ~to.v('/grains/speed')[0];
 		~buflen = ~to.v('/grains/buflen');
 		(0..3).do({|i|
-			var speed = ~to.v('/grains/speed' ++ i);
 			~granulators[i].reset(~buflen);
-			~possynths[i].set(\speed, speed / ~buflen);
 		});
 	});
 });
@@ -33,7 +30,6 @@ OSCdef.freeAll;
 ~setspeed = { | track, v |
 	var speed, qv = if(~speedquant > 0, { ~quantspeed.value(v) }, { v });
 	speed = qv / ~buflen;
-	[ "setspeed", v, qv, speed ].postln;
 	if(~speedlock > 0, {
 		(0..3).do({|n|
 			~possynths[n].set(\speed, speed);
@@ -58,7 +54,6 @@ OSCdef.freeAll;
 
 ~setrecord = { | track, v |
 	~granulators[track].record_(v);
-	[ v, track, ~tracknum ].postln;
 	if(v == 0, {
 		~mixlevel[track] = ~granulators[track].mix;
 		~granulators[track].mix_(0);
@@ -112,7 +107,7 @@ OSCdef.freeAll;
 // Page 2: track
 
 
-~to.xy('/track/triggersize', [ 320, 0.25 ], TouchOSCScale(0, 640), TouchOSCScale(0, 0.5), { |v|
+~to.xy('/track/triggersize', [ 100, 0.125 ], TouchOSCScale(0, 200), TouchOSCScale(0, 0.25), { |v|
 	~granulator.trigger_(v[0]);
 	~granulator.size_(v[1]);
 });
